@@ -16,7 +16,7 @@ function allClear() {
   for (const x of d.f.findings) {
     if ((x.verdict === 'confirmed' || x.verdict === 'flaky') && !(x.fix && x.fix.verdict === 'fixed')) x.fix = fixedProof(n++);
   }
-  d.f.findings = d.f.findings.filter((x) => !x.security_referral);
+  d.f.findings = d.f.findings.filter((x) => !x.security_referral && x.id !== 'QA-011'); // also clear the unreproduced P0 lead
   return d;
 }
 

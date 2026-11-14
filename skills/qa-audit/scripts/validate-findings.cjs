@@ -24,7 +24,7 @@ const PROVEN_REQUIRED = ['check_class', 'impact', 'likelihood', 'expected', 'exp
 const FORBIDDEN = {
   confirmed: ['blocking_fact', 'rejection_reason'],
   flaky: ['blocking_fact', 'rejection_reason'],
-  needs_validation: ['fix', 'rejection_reason', 'repro_rate'],
+  needs_validation: ['fix', 'rejection_reason', 'rejection_kind'],
   rejected: ['fix', 'blocking_fact'],
 };
 const UNTESTED_STATUSES = new Set(['pending', 'out_of_scope']);
@@ -56,6 +56,29 @@ function verdictErrors(f, w, err) {
   }
   if (f.verdict === 'needs_validation' && !isStr(f.blocking_fact)) err(w, 'needs_validation needs blocking_fact');
   if (f.verdict === 'rejected' && !isStr(f.rejection_reason)) err(w, 'rejected needs rejection_reason');
+  if (f.verdict === 'rejected' && !present(f, 'rejection_kind')) err(w, 'rejected needs rejection_kind');
+  if ((f.verdict === 'confirmed' || f.verdict === 'flaky') && present(f, 'rejection_kind')) err(w, `${f.verdict} finding must not contain "rejection_kind"`);
+  unreproducedErrors(f, w, err);
+}
+
+// "Didn't reproduce" is a claim about attempts, so it must say how many. And a
+// race the tester actually caught on record is not disproved by a few clean runs:
+// it is parked as needs_validation, which keeps it in the next run's focus.
+const MIN_NEGATIVE_ATTEMPTS = 5; // 3 tries plus 2 variations (VALIDATION.md 3.2)
+const INTERMITTENT_CLASSES = new Set(['timing']);
+function unreproducedErrors(f, w, err) {
+  const m = RATE.exec(f.repro_rate || '');
+  if (f.verdict === 'needs_validation' && present(f, 'repro_rate') && (!m || Number(m[1]) !== 0)) {
+    err(w, 'needs_validation may only record repro_rate as 0/N (attempts that did not reproduce it)');
+  }
+  const negative = f.verdict === 'rejected' && (f.rejection_kind === 'not_reproduced' || f.rejection_kind === 'no_longer_reproduces');
+  if (!negative) return;
+  if (!m || Number(m[1]) !== 0 || Number(m[2]) < MIN_NEGATIVE_ATTEMPTS) {
+    err(w, `${f.rejection_kind} needs repro_rate 0/N with at least ${MIN_NEGATIVE_ATTEMPTS} attempts (3 tries and 2 variations)`);
+  }
+  if (INTERMITTENT_CLASSES.has(f.check_class) && nonEmptyArr(f.evidence)) {
+    err(w, `a ${f.check_class} candidate with recorded evidence can't be rejected for not reproducing; use needs_validation ("seen once, not reproduced in N runs") so the next run keeps hunting it`);
+  }
 }
 
 function fixErrors(f, w, err) {

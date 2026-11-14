@@ -23,7 +23,12 @@ to disprove it do you confirm it.
    "no sourced expectation"), and record it as a suggestion instead.
 2. Reproduce from a clean state: new browser context, fresh test account or reseeded
    data, the same environment. Try at least 3 times. If it reproduces 0 times, try
-   2 likely variations (another browser, viewport, role) before rejecting.
+   2 likely variations (another browser, viewport, role) before rejecting, and
+   record the attempts as repro_rate "0/N". Exception: a timing candidate the
+   tester caught on record (video, trace, log) is never rejected for not
+   reproducing. Return needs_validation with blocking_fact "Seen once by <tester>;
+   0/N reproductions; needs <a longer soak, throttling, a controlled delay>". A
+   race that shows up once in 50 runs is still a race.
 3. Rule out artifacts: test-data mistakes, tester error, environment problems
    (a seed missing, a service down, the dev server's hot reload), browser extensions.
 4. Cut it down to a minimal repro: the fewest steps, the smallest data, the
@@ -51,7 +56,7 @@ with the fields required for that verdict (see schemas/findings.schema.json).
 | `confirmed` | At least 3/3 reproductions, a sourced expectation that checks out, a minimal repro, evidence, a `check_class`, `found_by` and `reproduced_by` (different agents), and a severity |
 | `flaky` | An intermittent rate from at least 5 attempts (`4/10`), plus everything `confirmed` needs |
 | `needs_validation` | One exact `blocking_fact` (what is missing and who could provide it). `severity: null` |
-| `rejected` | `rejection_reason`. `severity: null` |
+| `rejected` | `rejection_reason` and `rejection_kind` (`no_source`, `not_reproduced`, `no_longer_reproduces`, `artifact`, `duplicate`, `works_as_intended`). `not_reproduced` and `no_longer_reproduces` need `repro_rate` `0/N` with N ≥ 5, and are not allowed for a timing candidate with recorded evidence. `severity: null` |
 
 ### 3.4 Severity
 
@@ -89,7 +94,7 @@ Write `findings.json` following `schemas/findings.schema.json`:
 - Every finding's `unit` must exist in the ledger. Use `"WILDCARD"` for wildcard finds that have no unit. Its `check_class` must be one of the unit's assigned classes. Add the class to the unit if the tester found something outside its brief.
 - Set `found_by` to the tester or wildcard agent id and `reproduced_by` to the reproducer's. The validator rejects them being equal.
 - Evidence paths are relative and under `evidence/`.
-- For a finding carried forward from an earlier run, set `first_seen_run` and re-run its repro on the current build before keeping its verdict. If it no longer reproduces, change the verdict to `rejected` with the reason "no longer reproduces on <sha>".
+- For a finding carried forward from an earlier run, set `first_seen_run` and re-run its repro on the current build before keeping its verdict. If it no longer reproduces, change the verdict to `rejected` with `rejection_kind: "no_longer_reproduces"`, `repro_rate` `0/N` and the reason "no longer reproduces on <sha>". A timing finding with evidence becomes `needs_validation` instead, unless it was fixed.
 
 Then validate:
 

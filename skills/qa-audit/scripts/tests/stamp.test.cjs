@@ -165,7 +165,7 @@ test('a dirty audited build can never get Ship', () => {
   const d = { f: load('findings.json'), l: load('coverage-ledger.json'), r: load('run.json') };
   let n = 10;
   for (const x of d.f.findings) if ((x.verdict === 'confirmed' || x.verdict === 'flaky') && !(x.fix && x.fix.verdict === 'fixed')) x.fix = fixedProof(n++);
-  d.f.findings = d.f.findings.filter((x) => !x.security_referral);
+  d.f.findings = d.f.findings.filter((x) => !x.security_referral && x.id !== 'QA-011'); // also clear the unreproduced P0 lead
   assert.equal(computeVerdict(d.f, d.l, d.r).verdict, 'Ship');
   d.r.dirty = true;
   const v = computeVerdict(d.f, d.l, d.r);

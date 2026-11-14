@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0 — 2026-11-14
+
+### Added
+
+- `rejection_kind`, required for rejected findings: `no_source`, `not_reproduced`, `no_longer_reproduces`, `artifact`, `duplicate` or `works_as_intended`.
+- A rejection for not reproducing must record `repro_rate` `0/N` with at least 5 attempts.
+- A `timing` candidate with recorded evidence can't be rejected for not reproducing. It must be `needs_validation`, which may record its attempts as `0/N`, and `REPORT.md` lists it in the next run's focus as an unreproduced race to hunt.
+- The sample run includes one (QA-011).
+- Tests (121 in total).
+
 ## 0.6.0 — 2026-11-14
 
 ### Added

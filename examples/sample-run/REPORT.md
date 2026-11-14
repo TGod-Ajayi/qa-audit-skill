@@ -14,7 +14,7 @@
 ## Summary
 
 <!-- summary:start -->
-This run tested sign-up and checkout (the two P0 journeys), the product catalogue, Paystack webhooks and the shared money, validation and HTTP helpers on a local build, against the spec and the Checkout v3 Figma file. Two S1 bugs were fixed behind new tests and independently verified: double-clicking Pay charged customers twice, and the Paystack secret key was shipped in the client bundle (the owner must still rotate that test key). Sign-up still rejects names with apostrophes or diacritics, which blocks many real users, so the build should not ship until that is fixed. Money helpers use float maths, and checkout drifts from the design and styles Remove like a primary action. The order detail API was referred for security review without being probed, and webhook replay could not be tested without a test signing secret.
+This run tested sign-up and checkout (the two P0 journeys), the product catalogue, Paystack webhooks and the shared money, validation and HTTP helpers on a local build, against the spec and the Checkout v3 Figma file. Two S1 bugs were fixed behind new tests and independently verified: double-clicking Pay charged customers twice, and the Paystack secret key was shipped in the client bundle (the owner must still rotate that test key). Sign-up still rejects names with apostrophes or diacritics, which blocks many real users, so the build should not ship until that is fixed. Money helpers use float maths, and checkout drifts from the design and styles Remove like a primary action. The order detail API was referred for security review without being probed, and webhook replay could not be tested without a test signing secret. A tester caught the cart total briefly showing the old amount once on video; it did not reproduce in 10 runs, so it stays open as a lead for the next run rather than being dismissed.
 <!-- summary:end -->
 
 ## Findings
@@ -26,7 +26,7 @@ This run tested sign-up and checkout (the two P0 journeys), the product catalogu
 | S3 | 3 | 0 | 3 |
 | S4 | 0 | 0 | 0 |
 
-Verdicts: 6 confirmed, 1 flaky, 2 needs validation, 1 rejected.
+Verdicts: 6 confirmed, 1 flaky, 3 needs validation, 1 rejected.
 
 ### By check class
 
@@ -66,5 +66,6 @@ Verdicts: 6 confirmed, 1 flaky, 2 needs validation, 1 rejected.
 ## Next run focus
 
 - Security review for QA-010: Order detail API may return another customer's order by id
+- Hunt the unreproduced race QA-011 (0/10 so far): Cart total briefly shows the old amount after removing an item quickly
 - U-003 [P1] /products — partial
 - U-004 [P1] Paystack webhooks — blocked (No webhook signing secret for the test environment)

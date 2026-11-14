@@ -103,4 +103,4 @@ Counters (likes, stock, balances) stay correct under parallel updates. Fire 10 p
 2. Describe the timing that triggers it: which response was delayed or reordered, and by how much.
 3. Show the duplicate or lost side effect at its source (rows, dashboard, inbox, network log).
 4. Rule out test artifacts: hot reload, a shared test account used by another tester, a seed running in parallel.
-5. Use `confirmed` for 100% reproductions under controlled timing, `flaky` with the rate otherwise. Use `needs_validation` when the race needs real infrastructure you can't run (several app instances, a real queue) and say which.
+5. Use `confirmed` for 100% reproductions under controlled timing, `flaky` with the rate otherwise. Use `needs_validation` when the race needs real infrastructure you can't run (several app instances, a real queue) and say which. A race the tester caught on record but nobody can reproduce is also `needs_validation` (with `repro_rate` `0/N`), never `rejected`.

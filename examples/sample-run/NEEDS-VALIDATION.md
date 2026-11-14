@@ -15,3 +15,4 @@ Observed by QA and **not probed**. Route these to a dedicated security review (f
 | ID | Unit | Title | Blocking fact |
 |---|---|---|---|
 | QA-004 | U-004 | Webhook replay behaviour unverified | Need a test webhook signing secret to send signed sandbox events |
+| QA-011 | U-002 | Cart total briefly shows the old amount after removing an item quickly | Seen once by tester-b02 on video; 0/10 reproductions on chromium and webkit with 3G throttling. Needs a longer soak or a controlled delay on PATCH /api/cart |

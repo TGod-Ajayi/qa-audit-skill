@@ -68,7 +68,7 @@
     {
       "id": "QA-005", "unit": "U-003", "title": "Filter chips misaligned",
       "verdict": "rejected", "severity": null,
-      "rejection_reason": "Matches the design file; tester expectation had no source"
+      "rejection_kind": "no_source", "rejection_reason": "Matches the design file; tester expectation had no source"
     },
     {
       "id": "QA-006", "unit": "U-002", "check_class": "design", "title": "Checkout summary uses the wrong type scale and omits the delivery-fee row",
@@ -141,6 +141,15 @@
       "verdict": "needs_validation", "severity": null, "security_referral": true,
       "observed": "GET /api/orders/:id handler has no owner check in source; not probed",
       "blocking_fact": "Needs security review; not probed by QA",
+      "fix": null
+    },
+    {
+      "id": "QA-011", "unit": "U-002", "check_class": "timing", "title": "Cart total briefly shows the old amount after removing an item quickly",
+      "verdict": "needs_validation", "severity": null,
+      "observed": "Total showed ₦12,500 for about 1s after removing a ₦2,500 item; the next render showed ₦10,000",
+      "evidence": ["evidence/QA-011-stale-total.webm"],
+      "repro_rate": "0/10", "found_by": "tester-b02",
+      "blocking_fact": "Seen once by tester-b02 on video; 0/10 reproductions on chromium and webkit with 3G throttling. Needs a longer soak or a controlled delay on PATCH /api/cart",
       "fix": null
     }
   ],

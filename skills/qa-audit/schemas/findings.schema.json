@@ -54,6 +54,7 @@
           "reproduced_by": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"},
           "blocking_fact": {"type": ["string", "null"]},
           "rejection_reason": {"type": ["string", "null"]},
+          "rejection_kind": {"enum": ["no_source", "not_reproduced", "no_longer_reproduces", "artifact", "duplicate", "works_as_intended"]},
           "security_referral": {"type": "boolean"},
           "source_candidates": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
           "first_seen_run": {"type": "integer", "minimum": 1},

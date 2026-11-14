@@ -137,6 +137,8 @@ function renderReport(findingsDoc, ledger, run, previousReport, stampInfo) {
     '## Next run focus',
     '',
     ...f.filter((x) => x.security_referral).map((x) => `- Security review for ${x.id}: ${x.title}`),
+    ...f.filter((x) => x.verdict === 'needs_validation' && !x.security_referral && x.check_class === 'timing')
+      .map((x) => `- Hunt the unreproduced race ${x.id} (${x.repro_rate || '0/?'} so far): ${x.title}`),
     ...(gaps.length ? gaps.slice(0, 8).map((u) => `- ${u.id} [${u.priority}] ${u.target} — ${u.status}${u.blocked_reason ? ` (${u.blocked_reason})` : ''}`) : ['- Re-run full audit after the next significant release; repeated runs find more.']),
     '',
   ];
