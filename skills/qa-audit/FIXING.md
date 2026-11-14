@@ -51,6 +51,7 @@ You are fixing QA-<id>. You have its finding record and repo access.
 
 Never: delete, skip, loosen or .only tests; change expected values to match buggy
 behaviour; swallow or hide errors; add sleeps or blind retries to hide a race;
+turn on test-runner retries for the regression test;
 disable the feature; edit migrations already applied to shared environments.
 If you cannot fix it within these rules, stop and explain why.
 ```
@@ -68,13 +69,17 @@ the repo. You did not write this fix.
 2. Prove the test fails for the right reason. Run, from the skill directory:
 
      node scripts/check-fix-test.cjs --repo <repo> --commit <fix sha> \
-       --test-file <test file> --expect "<failure_signature>" \
+       --test-file <test file> --expect "<failure_signature>" --repeat <n> \
        --out <run>/agents/<agent-id>/evidence/QA-<id>-revert-check.json \
        -- <command that runs only that test>
 
-   It reverse-applies only the commit's non-test changes, runs the test and
-   requires a non-zero exit whose output contains the signature; then it
-   restores the fix and requires the test to pass. A test that dies on a bad
+   It reverse-applies only the commit's non-test changes and runs the test n
+   times: at least one run must exit non-zero with the signature in its output.
+   Then it restores the fix and runs the test n times: every run must pass.
+   Pick n from the finding: 3 for confirmed; for flaky, the smallest n where an
+   unfixed bug would slip past every run at most 5% of the time,
+   ceil(ln 0.05 / ln(1 - rate)): 6 for 4/10, 29 for 1/10. The validator checks n.
+   Disable the runner's own retries for this command (Playwright --retries=0). A test that dies on a bad
    selector or a setup error does not print the signature and fails the check.
    Add --keep <path> for test fixtures or snapshots committed with the test.
    Before running it, read the signature against the finding's observed
@@ -118,7 +123,7 @@ Verdict: fixed | not_fixed | regressed, with reasons and evidence.
 ```
 
 - Promote the fixer's and verifier's evidence into `evidence/` before writing the record.
-- `fixed` needs a passing revert check. `validate-findings.cjs --run-dir` and `generate-report.cjs` read `revert_check` back and require it to match the fix's commit, test file and `failure_signature`. A signature that names a timeout, selector, missing module or "no tests found" is rejected.
+- `fixed` needs a passing revert check. `validate-findings.cjs --run-dir` and `generate-report.cjs` read `revert_check` back and require it to match the fix's commit, test file and `failure_signature`. They also require enough repeats for the finding (3 for confirmed; for flaky, enough that an unfixed bug would show up with at least 95% probability), every with-fix run green, and, for a confirmed finding, the test catching the bug on every without-fix run. A signature that names a timeout, selector, missing module or "no tests found" is rejected.
 - `not_fixed`, `regressed` and `needs_human` need `notes` on what was tried.
 - Re-run `validate-findings.cjs` after every fix record.
 - Sibling candidates found by verifiers go through Phase 3 like any other candidate.

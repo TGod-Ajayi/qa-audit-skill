@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { load, has, byId, fixedProof, tmpDir, tmpRun, cli, SAMPLE } = require('./helpers.cjs');
-const { validateFindings, revertCheckErrors } = require('../validate-findings.cjs');
+const { validateFindings, revertCheckErrors, requiredRepeat } = require('../validate-findings.cjs');
 
 const SIG = 'total should be 30 kobo';
 const BUGGY = 'exports.add = (a, b) => (a / 100 + b / 100) * 100;\n';
@@ -31,11 +31,11 @@ function git(dir, ...args) {
 }
 
 // A repo whose first commit has the bug and whose second commit is the fix.
-function repo({ test = GOOD_TEST, product = { 'money.js': FIXED }, includeTest = true } = {}) {
+function repo({ test = GOOD_TEST, product = { 'money.js': FIXED }, includeTest = true, buggy = BUGGY } = {}) {
   const dir = tmpDir();
   git(dir, 'init', '-q', '-b', 'main');
   git(dir, 'config', 'core.autocrlf', 'false');
-  fs.writeFileSync(path.join(dir, 'money.js'), BUGGY);
+  fs.writeFileSync(path.join(dir, 'money.js'), buggy);
   fs.writeFileSync(path.join(dir, 'README.md'), 'demo\n');
   git(dir, 'add', '.');
   git(dir, 'commit', '-q', '-m', 'buggy');
@@ -51,6 +51,14 @@ function repo({ test = GOOD_TEST, product = { 'money.js': FIXED }, includeTest =
   return dir;
 }
 
+// An intermittent bug: the module counts its loads in an untracked file and gets the
+// sum wrong when the count is a multiple of `every`. Deterministic, so tests are stable.
+const intermittent = (every) => `const fs = require('fs');
+let n = 0; try { n = Number(fs.readFileSync('.count', 'utf8')); } catch {}
+fs.writeFileSync('.count', String(n + 1));
+exports.add = (a, b) => (n % ${every} === 0 ? (a / 100 + b / 100) * 100 : a + b);
+`;
+
 function run(dir, { commit, expect = SIG, extra = [], cmd = [process.execPath, 'money.test.js'] } = {}) {
   const sha = commit || git(dir, 'rev-parse', 'HEAD~0');
   const out = path.join(tmpDir(), 'revert-check.json');
@@ -65,9 +73,9 @@ test('passes when the test fails with the expected assertion without the fix and
   assert.equal(r.status, 0, r.stderr);
   assert.equal(result.result, 'pass');
   assert.deepEqual(result.reverted_files, ['money.js']);
-  assert.ok(result.without_fix.matched_expect);
-  assert.notEqual(result.without_fix.exit_code, 0);
-  assert.equal(result.with_fix.exit_code, 0);
+  assert.equal(result.repeat, 3, 'repeats 3 times by default');
+  assert.deepEqual([result.without_fix.runs, result.without_fix.matched_failures], [3, 3]);
+  assert.deepEqual([result.with_fix.runs, result.with_fix.passes], [3, 3]);
   assert.equal(git(dir, 'status', '--porcelain'), '', 'working tree is restored');
   assert.equal(fs.readFileSync(path.join(dir, 'money.js'), 'utf8'), FIXED);
 });
@@ -77,7 +85,7 @@ test('fails a test that only dies on a selector the fix happened to add', () => 
   const { r, result } = run(dir);
   assert.equal(r.status, 1);
   assert.equal(result.result, 'fail');
-  assert.ok(has(result.reasons, /not with the expected assertion/));
+  assert.ok(has(result.reasons, /never fails with the expected assertion/));
   assert.ok(has(result.warnings, /selector timeout or setup error/));
   assert.ok(fs.existsSync(path.join(dir, 'pay-button.js')), 'a file the fix added is put back');
   assert.equal(git(dir, 'status', '--porcelain'), '');
@@ -86,13 +94,31 @@ test('fails a test that only dies on a selector the fix happened to add', () => 
 test('fails when the test passes without the fix', () => {
   const dir = repo({ test: "console.log('ok money.test.js');\n" });
   const { result } = run(dir);
-  assert.ok(has(result.reasons, /passes without the fix/));
+  assert.ok(has(result.reasons, /passes in all 3 run\(s\) without the fix/));
 });
 
 test('fails when the test does not pass with the fix', () => {
   const dir = repo({ product: { 'money.js': 'exports.add = (a, b) => a + b + 1;\n' } });
   const { result } = run(dir);
-  assert.ok(has(result.reasons, /does not pass with the fix/));
+  assert.ok(has(result.reasons, /fails with the fix in place/));
+});
+
+test('an intermittent bug counts as caught if any repeat fails with the assertion', () => {
+  const dir = repo({ buggy: intermittent(2) });
+  const { r, result } = run(dir, { extra: ['--repeat', '4'] });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual([result.without_fix.matched_failures, result.without_fix.passes], [2, 2]);
+  assert.deepEqual([result.with_fix.runs, result.with_fix.passes], [4, 4]);
+});
+
+test('a fix that only works some of the time fails on the first red repeat', () => {
+  // Without the fix the bug shows every 2nd load; the "fix" only makes it every 3rd.
+  const dir = repo({ buggy: intermittent(2), product: { 'money.js': intermittent(3) } });
+  const { r, result } = run(dir, { extra: ['--repeat', '6'] });
+  assert.equal(r.status, 1);
+  assert.ok(has(result.reasons, /fails with the fix in place \(run \d of 6\); the fix does not hold every time/));
+  assert.equal(result.with_fix.failures, 1);
+  assert.ok(result.with_fix.runs < 6, 'stops at the first failure');
 });
 
 test('fails when the regression test was not committed with the fix', () => {
@@ -126,6 +152,7 @@ test('refuses a dirty tree, harness signatures and bad arguments', () => {
   for (const expect of ['Timeout 30000ms exceeded', "waiting for locator('#pay')", "Cannot find module './x'", 'short']) {
     assert.equal(run(clean, { expect }).r.status, 2, expect);
   }
+  for (const n of ['0', '1.5', '1001', 'x']) assert.equal(run(clean, { extra: ['--repeat', n] }).r.status, 2, n);
   assert.equal(cli('check-fix-test.cjs', ['--repo', clean]).status, 2);
   assert.equal(cli('check-fix-test.cjs', ['--repo', clean, '--commit', 'abc1234', '--test-file', '../x', '--expect', SIG, '--', 'node']).status, 2);
   assert.equal(cli('check-fix-test.cjs', ['--repo', clean, '--commit', 'abc1234', '--test-file', 'money.test.js', '--expect', SIG]).status, 2);
@@ -174,9 +201,11 @@ test('revert check files are read back and must match the fix', () => {
     [(rc) => { rc.commit = 'a'.repeat(40); }, /different commit/],
     [(rc) => { rc.test_file = 'other.spec.ts'; }, /different test file/],
     [(rc) => { rc.expect = 'something else entirely'; }, /does not match fix.failure_signature/],
-    [(rc) => { rc.without_fix.matched_expect = false; }, /failing with the expected assertion/],
-    [(rc) => { rc.without_fix.exit_code = 0; }, /failing with the expected assertion/],
-    [(rc) => { rc.with_fix.exit_code = 1; }, /passing with the fix/],
+    [(rc) => { rc.without_fix.matched_failures = 0; rc.without_fix.passes = 3; }, /failing with the expected assertion/],
+    [(rc) => { rc.without_fix.matched_failures = 2; rc.without_fix.passes = 1; }, /caught the bug in only 2\/3 runs without the fix, but the finding is confirmed/],
+    [(rc) => { rc.with_fix.passes = 2; rc.with_fix.failures = 1; }, /passing in all 3 run\(s\) with the fix/],
+    [(rc) => { rc.with_fix.runs = 1; rc.with_fix.passes = 1; }, /passing in all 3 run\(s\) with the fix/],
+    [(rc) => { rc.repeat = 1; }, /ran 1 time\(s\); a confirmed finding at 3\/3 needs --repeat 3 or more/],
     [(rc) => { rc.reverted_files = []; }, /removed no product code/],
     [(rc) => { rc.extra = 1; }, /extra|not allowed|additional/],
   ];
@@ -200,4 +229,34 @@ test('validate-findings --run-dir and generate-report enforce the revert check',
   const g = cli('generate-report.cjs', [dir]);
   assert.equal(g.status, 1);
   assert.match(g.stderr, /QA-009\.fix\.revert_check/);
+});
+
+test('required repeats scale with how rarely a flaky bug shows up', () => {
+  const r = (repro_rate, verdict = 'flaky') => requiredRepeat({ verdict, repro_rate });
+  assert.equal(r('3/3', 'confirmed'), 3);
+  assert.equal(r('9/10'), 3);
+  assert.equal(r('5/10'), 5);
+  assert.equal(r('4/10'), 6);
+  assert.equal(r('1/10'), 29);
+  assert.equal(r('1/20'), 59);
+  // At the required count an unfixed bug slips through at most 5% of the time.
+  for (const [h, t] of [[1, 10], [4, 10], [1, 3], [2, 7]]) {
+    const n = r(`${h}/${t}`);
+    assert.ok((1 - h / t) ** n <= 0.05, `${h}/${t}`);
+    assert.ok(n === 3 || (1 - h / t) ** (n - 1) > 0.05, `${h}/${t} is minimal`);
+  }
+});
+
+test('a fixed flaky finding needs a revert check with enough repeats', () => {
+  const dir = tmpRun();
+  const p = path.join(dir, 'evidence', 'QA-001-revert-check.json');
+  const doc = F(); const f = byId(doc, 'QA-001');
+  f.verdict = 'flaky'; f.repro_rate = '1/10';
+  assert.ok(has(revertCheckErrors(doc, dir), /a flaky finding at 1\/10 needs --repeat 29 or more/));
+  const rc = JSON.parse(fs.readFileSync(p, 'utf8'));
+  Object.assign(rc, { repeat: 29 });
+  Object.assign(rc.without_fix, { runs: 29, matched_failures: 4, passes: 25 });
+  Object.assign(rc.with_fix, { runs: 29, passes: 29 });
+  fs.writeFileSync(p, JSON.stringify(rc));
+  assert.deepEqual(revertCheckErrors(doc, dir), [], 'a flaky test need not fail on every unfixed run');
 });

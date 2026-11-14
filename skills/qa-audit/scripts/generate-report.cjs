@@ -145,7 +145,7 @@ function renderDetail(findingsDoc) {
     if (f.fix) {
       out.push(`**Fix:** ${f.fix.verdict}${f.fix.commit ? ` in \`${f.fix.commit}\`` : ''}${f.fix.test_file ? `, test \`${f.fix.test_file}\`` : ''}${f.fix.rounds ? `, ${f.fix.rounds} round(s)` : ''}` +
         `${f.fix.fixer ? `; fixed by ${f.fix.fixer}, verified by ${f.fix.verifier}` : ''}`);
-      if (f.fix.fails_without_fix) out.push(`  Fails without the fix: yes, with \`${f.fix.failure_signature}\` (checked by \`${f.fix.revert_check}\`)`);
+      if (f.fix.fails_without_fix) out.push(`  Fails without the fix with \`${f.fix.failure_signature}\`; passes with it on every repeated run (checked by \`${f.fix.revert_check}\`)`);
       if (f.fix.evidence && f.fix.evidence.length) out.push(`  Fix evidence: ${f.fix.evidence.map((e) => `\`${e}\``).join(', ')}`);
       if (f.fix.notes) out.push(`  ${f.fix.notes}`);
       out.push('');

@@ -130,7 +130,7 @@ When the user sets a budget, record it as `budget`, the maximum number of sub-ag
 | `scripts/validate-run.cjs` | Validates `run.json` |
 | `scripts/validate-coverage-ledger.cjs` | Validates the ledger |
 | `scripts/validate-findings.cjs` | Validates findings, with `--ledger` and `--run` cross-checks |
-| `scripts/check-fix-test.cjs` | Proves a regression test fails with the expected assertion when only the product fix is removed, and passes with it |
+| `scripts/check-fix-test.cjs` | Proves a regression test fails with the expected assertion when only the product fix is removed, and passes on every repeated run with it |
 | `scripts/generate-report.cjs` | Writes the reports from the validated records |
 
 Read each phase file when you reach that phase, not all at once. Give each tester only the checklists its units need.
@@ -196,7 +196,7 @@ Script commands, run from the skill directory:
 node scripts/validate-run.cjs <run>/run.json
 node scripts/validate-coverage-ledger.cjs <run>/coverage-ledger.json
 node scripts/validate-findings.cjs <run>/findings.json --ledger <run>/coverage-ledger.json --run <run>/run.json --run-dir <run>
-node scripts/check-fix-test.cjs --repo <repo> --commit <sha> --test-file <test> --expect "<signature>" --out <file> -- <test command>
+node scripts/check-fix-test.cjs --repo <repo> --commit <sha> --test-file <test> --expect "<signature>" --repeat <n> --out <file> -- <test command>
 node scripts/generate-report.cjs <run>
 ```
 

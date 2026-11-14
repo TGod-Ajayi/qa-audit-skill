@@ -29,6 +29,8 @@ to disprove it do you confirm it.
 4. Cut it down to a minimal repro: the fewest steps, the smallest data, the
    simplest environment that still triggers it.
 5. If it is intermittent, run it at least 10 times (5 minimum) and record the rate.
+   The rate sets how many times the fix must later pass in a row, so record the
+   real count; don't round a rare bug up to look more reproducible.
    Static findings (code-quality, passive security) "reproduce" by re-running the
    command or re-reading the source and config on a clean checkout of the build.
 6. Root-cause hypothesis: find the code most likely responsible (file:line) and

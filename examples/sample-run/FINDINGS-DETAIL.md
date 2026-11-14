@@ -26,7 +26,7 @@ _Source: docs/spec.md#checkout: 'each checkout creates exactly one order'_
 **Evidence:** `evidence/QA-001-network.har`, `evidence/QA-001-orders.png`
 
 **Fix:** fixed in `f00dbab`, test `tests/e2e/checkout-double-submit.spec.ts`, 1 round(s); fixed by fixer-qa-001, verified by verifier-qa-001
-  Fails without the fix: yes, with `one order per Pay click` (checked by `evidence/QA-001-revert-check.json`)
+  Fails without the fix with `one order per Pay click`; passes with it on every repeated run (checked by `evidence/QA-001-revert-check.json`)
   Fix evidence: `evidence/QA-001-test-before.txt`, `evidence/QA-001-test-after.txt`, `evidence/QA-001-revert-check.json`
   Disabled button while pending and added idempotency key on POST /api/orders
 
@@ -54,7 +54,7 @@ _Source: Paystack docs: 'never expose your secret key on the client'_
 **Evidence:** `evidence/QA-009-bundle-scan-redacted.txt`
 
 **Fix:** fixed in `be7c0de`, test `tests/build/no-secrets-in-bundle.test.ts`, 1 round(s); fixed by fixer-qa-009, verified by verifier-qa-009
-  Fails without the fix: yes, with `bundle contains secret key prefix sk_t` (checked by `evidence/QA-009-revert-check.json`)
+  Fails without the fix with `bundle contains secret key prefix sk_t`; passes with it on every repeated run (checked by `evidence/QA-009-revert-check.json`)
   Fix evidence: `evidence/QA-009-test-before.txt`, `evidence/QA-009-test-after.txt`, `evidence/QA-009-revert-check.json`
   Moved the charge call server-side. The exposed test key must still be rotated by the owner.
 

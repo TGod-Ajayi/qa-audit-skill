@@ -1,10 +1,11 @@
 {
   "tool": "qa-audit/check-fix-test",
-  "version": 1,
+  "version": 2,
   "result": "pass",
   "commit": "be7c0de333333333333333333333333333333333",
   "head": "c0ffee5111111111111111111111111111111111",
   "test_file": "tests/build/no-secrets-in-bundle.test.ts",
+  "repeat": 3,
   "expect": "bundle contains secret key prefix sk_t",
   "command": [
     "npx",
@@ -21,14 +22,18 @@
     ".env.example"
   ],
   "without_fix": {
-    "exit_code": 1,
-    "timed_out": false,
-    "matched_expect": true,
+    "runs": 3,
+    "matched_failures": 3,
+    "other_failures": 0,
+    "passes": 0,
+    "timed_out_runs": 0,
     "output_tail": " FAIL  tests/build/no-secrets-in-bundle.test.ts > client bundle has no secret keys\nAssertionError: bundle contains secret key prefix sk_t (dist/assets/index-3f9a.js)\n\n Test Files  1 failed (1)\n"
   },
   "with_fix": {
-    "exit_code": 0,
-    "timed_out": false,
+    "runs": 3,
+    "passes": 3,
+    "failures": 0,
+    "timed_out_runs": 0,
     "output_tail": " \u2713 tests/build/no-secrets-in-bundle.test.ts (1 test) 4210ms\n\n Test Files  1 passed (1)\n"
   },
   "reasons": [],

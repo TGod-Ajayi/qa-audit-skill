@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0 — 2026-11-14
+
+### Added
+
+- `check-fix-test.cjs --repeat <n>` (default 3). Without the fix, the test runs n times and must fail with the expected assertion at least once. With the fix, all n runs must pass; it stops at the first failure.
+- The validator sets the minimum repeat count from the finding: 3 for `confirmed`, and for `flaky` the smallest n with (1 − rate)^n ≤ 5%, for example 6 for 4/10 and 29 for 1/10. A `confirmed` finding's test must catch the bug on every run without the fix.
+- Tests with a deterministic intermittent bug, including a "fix" that only works some of the time (96 tests in total).
+
+### Changed
+
+- The revert-check result is now version 2, with per-run counts (`runs`, `matched_failures`, `passes`, `failures` and more) in place of a single exit code.
+- Fixers may not turn on test-runner retries for the regression test.
+
 ## 0.3.0 — 2026-11-14
 
 ### Added

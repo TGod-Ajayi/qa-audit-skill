@@ -2,44 +2,171 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/TGod-Ajayi/qa-audit-skill/schemas/revert-check.schema.json",
   "title": "qa-audit fix test revert check",
-  "description": "Output of scripts/check-fix-test.cjs: the regression test run with only the product part of the fix removed, then with the fix in place.",
+  "description": "Output of scripts/check-fix-test.cjs: the regression test run --repeat times with only the product part of the fix removed, then --repeat times with the fix in place.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["tool", "version", "result", "commit", "head", "test_file", "expect", "command", "kept_files", "reverted_files", "without_fix", "with_fix", "reasons", "warnings", "checked_at"],
+  "required": [
+    "tool",
+    "version",
+    "result",
+    "commit",
+    "head",
+    "test_file",
+    "repeat",
+    "expect",
+    "command",
+    "kept_files",
+    "reverted_files",
+    "without_fix",
+    "with_fix",
+    "reasons",
+    "warnings",
+    "checked_at"
+  ],
   "properties": {
-    "tool": {"const": "qa-audit/check-fix-test"},
-    "version": {"const": 1},
-    "result": {"enum": ["pass", "fail"]},
-    "commit": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
-    "head": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
-    "test_file": {"type": "string", "minLength": 1},
-    "expect": {"type": "string", "minLength": 8},
-    "command": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-    "kept_files": {"type": "array", "items": {"type": "string", "minLength": 1}},
-    "reverted_files": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "tool": {
+      "const": "qa-audit/check-fix-test"
+    },
+    "version": {
+      "const": 2
+    },
+    "result": {
+      "enum": [
+        "pass",
+        "fail"
+      ]
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40,64}$"
+    },
+    "head": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40,64}$"
+    },
+    "test_file": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repeat": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expect": {
+      "type": "string",
+      "minLength": 8
+    },
+    "command": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "kept_files": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "reverted_files": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
     "without_fix": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": false,
-      "required": ["exit_code", "timed_out", "matched_expect", "output_tail"],
+      "required": [
+        "runs",
+        "matched_failures",
+        "other_failures",
+        "passes",
+        "timed_out_runs",
+        "output_tail"
+      ],
       "properties": {
-        "exit_code": {"type": "integer"},
-        "timed_out": {"type": "boolean"},
-        "matched_expect": {"type": "boolean"},
-        "output_tail": {"type": "string"}
+        "runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "matched_failures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "other_failures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timed_out_runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_tail": {
+          "type": "string"
+        }
       }
     },
     "with_fix": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": false,
-      "required": ["exit_code", "timed_out", "output_tail"],
+      "required": [
+        "runs",
+        "passes",
+        "failures",
+        "timed_out_runs",
+        "output_tail"
+      ],
       "properties": {
-        "exit_code": {"type": "integer"},
-        "timed_out": {"type": "boolean"},
-        "output_tail": {"type": "string"}
+        "runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timed_out_runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_tail": {
+          "type": "string"
+        }
       }
     },
-    "reasons": {"type": "array", "items": {"type": "string"}},
-    "warnings": {"type": "array", "items": {"type": "string"}},
-    "checked_at": {"type": "string", "minLength": 1}
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "checked_at": {
+      "type": "string",
+      "minLength": 1
+    }
   }
 }

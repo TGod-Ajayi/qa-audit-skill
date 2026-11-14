@@ -58,7 +58,7 @@ Multiple runs against the same repo are additive. The skill reads earlier ledger
 | `scripts/validate-run.cjs` | Validator for `run.json` |
 | `scripts/validate-coverage-ledger.cjs` | Validator for the ledger |
 | `scripts/validate-findings.cjs` | Validator for findings, with ledger and run cross-checks |
-| `scripts/check-fix-test.cjs` | Proves a regression test fails for the right reason: removes only the product fix and requires the bug's assertion |
+| `scripts/check-fix-test.cjs` | Proves a regression test fails for the right reason (removes only the product fix and requires the bug's assertion) and that the fix holds on every repeated run |
 | `scripts/generate-report.cjs` | Report generator; refuses to run on invalid records |
 | `scripts/tests/` | `node:test` suites for the validators, the generator, the CLIs and doc consistency |
 | `examples/sample-run/` | A complete example run with generated reports |
@@ -134,12 +134,18 @@ Agents happily write a test that dies on a bad selector, then "fix" it by adding
 ```bash
 node skills/qa-audit/scripts/check-fix-test.cjs --repo . --commit <fix sha> \
   --test-file tests/e2e/checkout-double-submit.spec.ts \
-  --expect "one order per Pay click" \
+  --expect "one order per Pay click" --repeat 3 \
   --out <run>/agents/verifier-qa-001/evidence/QA-001-revert-check.json \
   -- npx playwright test tests/e2e/checkout-double-submit.spec.ts
 ```
 
-It reverse-applies only the fix's **non-test** changes and runs the test. The test must fail, and its output must contain the expected assertion message, which names the bug. Then it restores the fix and the test must pass. A timeout on a missing selector, a missing module or "no tests found" never prints that message, so the check fails. A signature that is itself a timeout or selector error is rejected outright. The JSON result is read back by `validate-findings.cjs --run-dir` and `generate-report.cjs`, so a fix can't be marked `fixed` without it.
+It reverse-applies only the fix's **non-test** changes and runs the test. The test must fail, and its output must contain the expected assertion message, which names the bug. Then it restores the fix and the test must pass on every repeated run. A timeout on a missing selector, a missing module or "no tests found" never prints that message, so the check fails. A signature that is itself a timeout or selector error is rejected outright. The JSON result is read back by `validate-findings.cjs --run-dir` and `generate-report.cjs`, so a fix can't be marked `fixed` without it.
+
+### What about flaky bugs?
+
+A bug that shows up once in a while can't be `confirmed` (that needs 3/3 from a clean state, by a different agent). It's `flaky`, with a rate measured over at least 5 attempts, and reported separately.
+
+Fixing one is harder to prove: if a bug shows up 4 times in 10, an unfixed build still passes a single run 60% of the time. So the validator sets `--repeat` from the bug's own rate: enough runs that an unfixed bug would slip past all of them at most 5% of the time. That's 6 runs for 4/10 and 29 for 1/10. Every run with the fix must pass, and the test must catch the bug at least once without it. For a confirmed bug, the test must catch it on every run without the fix; if it doesn't, the test or the verdict is wrong.
 
 See [`examples/sample-run/REPORT.md`](examples/sample-run/REPORT.md) for what a finished run looks like.
 

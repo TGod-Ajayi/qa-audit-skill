@@ -136,8 +136,24 @@ function validateFindings(doc, ledger, run) {
   return semanticErrors(doc, ledger || null, run || null);
 }
 
+// How many times the fixed test must pass in a row before the fix counts. A
+// confirmed bug reproduced every time, so 3 clean runs are enough. A flaky bug that
+// shows up with rate p slips past n runs with probability (1 - p)^n, so n is the
+// smallest number of runs that keeps that chance at or below MISS_CHANCE.
+const MIN_REPEAT = 3;
+const MISS_CHANCE = 0.05;
+function requiredRepeat(f) {
+  const m = RATE.exec(f.repro_rate || '');
+  if (f.verdict !== 'flaky' || !m) return MIN_REPEAT;
+  const p = Number(m[1]) / Number(m[2]);
+  if (!(p > 0 && p < 1)) return MIN_REPEAT;
+  // The small epsilon keeps exact cases (such as p = 0.5) from rounding up.
+  return Math.max(MIN_REPEAT, Math.ceil(Math.log(MISS_CHANCE) / Math.log(1 - p) - 1e-9));
+}
+
 // Reads each fixed finding's revert check from the run directory and confirms it is
-// a passing check-fix-test.cjs result for this fix: same commit, test and signature.
+// a passing check-fix-test.cjs result for this fix: same commit, test and signature,
+// enough runs for the finding's reproduction rate, and every fixed run green.
 function revertCheckErrors(doc, runDir) {
   const errors = [];
   const schema = loadSchema('revert-check.schema.json');
@@ -157,15 +173,20 @@ function revertCheckErrors(doc, runDir) {
     if (rc.test_file !== x.test_file) err('was run against a different test file than fix.test_file');
     if (rc.expect !== x.failure_signature) err('expected assertion does not match fix.failure_signature');
     if (!rc.reverted_files.length) err('removed no product code');
-    if (!rc.without_fix || rc.without_fix.exit_code === 0 || rc.without_fix.timed_out || !rc.without_fix.matched_expect) {
-      err('does not show the test failing with the expected assertion without the fix');
+    const need = requiredRepeat(f);
+    if (rc.repeat < need) err(`ran ${rc.repeat} time(s); a ${f.verdict} finding at ${f.repro_rate} needs --repeat ${need} or more`);
+    const before = rc.without_fix;
+    if (!before || before.matched_failures < 1) err('does not show the test failing with the expected assertion without the fix');
+    else if (f.verdict === 'confirmed' && before.matched_failures !== before.runs) {
+      err(`the test caught the bug in only ${before.matched_failures}/${before.runs} runs without the fix, but the finding is confirmed (always reproduces); the test or the verdict is wrong`);
     }
-    if (!rc.with_fix || rc.with_fix.exit_code !== 0) err('does not show the test passing with the fix');
+    const after = rc.with_fix;
+    if (!after || after.failures > 0 || after.passes !== rc.repeat || after.runs !== rc.repeat) err(`does not show the test passing in all ${rc.repeat} run(s) with the fix`);
   }
   return errors;
 }
 
-module.exports = { validateFindings, revertCheckErrors };
+module.exports = { validateFindings, revertCheckErrors, requiredRepeat };
 
 function parseArgs(argv) {
   const out = { file: null, ledger: null, run: null, runDir: null };
