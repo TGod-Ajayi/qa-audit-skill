@@ -8,7 +8,7 @@ const { ROOT } = require('./helpers.cjs');
 const { loadSchema } = require('../lib/common.cjs');
 
 const SKILL = path.join(ROOT, 'skills', 'qa-audit');
-const read = (...p) => fs.readFileSync(path.join(SKILL, ...p), 'utf8');
+const read = (...p) => fs.readFileSync(path.join(SKILL, ...p), 'utf8').replace(/\r\n/g, '\n');
 const CLASSES = loadSchema('coverage-ledger.schema.json').properties.units.items.properties.check_classes.items.enum;
 const KINDS = loadSchema('coverage-ledger.schema.json').properties.units.items.properties.kind.enum;
 
