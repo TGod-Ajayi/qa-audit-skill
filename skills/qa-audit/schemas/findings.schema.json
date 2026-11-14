@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/TGod-Ajayi/qa-audit-skill/schemas/findings.schema.json",
+  "title": "QA audit findings",
+  "type": "object",
+  "required": ["run", "build", "findings"],
+  "properties": {
+    "run": {"type": "integer", "minimum": 1},
+    "build": {"type": "string", "minLength": 1},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "unit", "title", "verdict", "severity"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^QA-\\d{3,}$"},
+          "unit": {"type": "string"},
+          "title": {"type": "string", "minLength": 1},
+          "verdict": {"enum": ["confirmed", "flaky", "needs_validation", "rejected"]},
+          "severity": {"enum": ["S1", "S2", "S3", "S4", null]},
+          "impact": {"type": "string"},
+          "likelihood": {"type": "string"},
+          "expected": {"type": "string"},
+          "expected_source": {"type": "string"},
+          "observed": {"type": "string"},
+          "minimal_repro": {"type": "array", "items": {"type": "string"}},
+          "environment": {
+            "type": "object",
+            "properties": {
+              "url": {"type": "string"},
+              "browser": {"type": "string"},
+              "viewport": {"type": "string"},
+              "build": {"type": "string"}
+            }
+          },
+          "evidence": {"type": "array", "items": {"type": "string"}},
+          "root_cause_hypothesis": {
+            "type": ["object", "null"],
+            "properties": {
+              "location": {"type": "string"},
+              "reasoning": {"type": "string"}
+            }
+          },
+          "repro_rate": {"type": "string", "pattern": "^\\d+/\\d+$"},
+          "blocking_fact": {"type": ["string", "null"]},
+          "rejection_reason": {"type": ["string", "null"]},
+          "security_referral": {"type": "boolean"},
+          "source_candidates": {"type": "array", "items": {"type": "string"}},
+          "first_seen_run": {"type": "integer"},
+          "notes": {"type": "string"},
+          "fix": {
+            "type": ["object", "null"],
+            "required": ["verdict"],
+            "properties": {
+              "verdict": {"enum": ["fixed", "not_fixed", "regressed", "needs_human"]},
+              "commit": {"type": "string"},
+              "test_file": {"type": "string"},
+              "test_failed_before": {"type": "boolean"},
+              "test_passes_after": {"type": "boolean"},
+              "verified_by_independent_agent": {"type": "boolean"},
+              "rounds": {"type": "integer", "minimum": 1},
+              "notes": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "suggestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "unit": {"type": "string"},
+          "text": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

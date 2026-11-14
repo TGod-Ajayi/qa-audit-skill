@@ -1,0 +1,50 @@
+{
+  "run": 1,
+  "build": "a1b2c3d",
+  "p0_journeys": [
+    {"name": "Sign up and verify email", "unit": "U-001"},
+    {"name": "Checkout and pay", "unit": "U-002"}
+  ],
+  "units": [
+    {
+      "id": "U-001", "area": "auth", "kind": "journey", "target": "/signup → email verification",
+      "priority": "P0", "expected_source": "docs/spec.md#signup",
+      "check_classes": ["happy-path", "input"], "status": "covered",
+      "checks_performed": [
+        {"class": "happy-path", "check": "Signed up with valid data, verified via Mailpit link, landed on dashboard", "result": "pass", "evidence": ["evidence/U-001-happy.png"]},
+        {"class": "input", "check": "Name with apostrophe and Yoruba diacritics (Adébáyọ̀ O'Neil)", "result": "fail", "evidence": ["evidence/U-001-name-unicode.png"]}
+      ],
+      "source_files": ["src/routes/signup.tsx", "src/api/auth.ts"]
+    },
+    {
+      "id": "U-002", "area": "checkout", "kind": "journey", "target": "/checkout → POST /api/orders",
+      "priority": "P0", "expected_source": "docs/spec.md#checkout; OrderSchema",
+      "check_classes": ["happy-path", "timing", "money"], "status": "covered",
+      "checks_performed": [
+        {"class": "happy-path", "check": "Paid with Paystack test card, order shows Paid, receipt emailed", "result": "pass", "evidence": ["evidence/U-002-happy.png"]},
+        {"class": "timing", "check": "Double-clicked Pay", "result": "fail", "evidence": ["evidence/U-002-double-pay.har"]},
+        {"class": "money", "check": "Coupon + delivery fee total vs charged amount", "result": "pass", "evidence": ["evidence/U-002-totals.png"]}
+      ],
+      "source_files": ["src/routes/checkout.tsx", "src/api/orders.ts"]
+    },
+    {
+      "id": "U-003", "area": "catalog", "kind": "page", "target": "/products",
+      "priority": "P1", "expected_source": "docs/spec.md#catalog",
+      "check_classes": ["happy-path", "responsive", "performance"], "status": "partial",
+      "checks_performed": [
+        {"class": "happy-path", "check": "Listed, filtered and paginated products", "result": "pass", "evidence": ["evidence/U-003-list.png"]},
+        {"class": "responsive", "check": "375px viewport", "result": "fail", "evidence": ["evidence/U-003-mobile.png"]}
+      ],
+      "source_files": ["src/routes/products.tsx"],
+      "notes": "Performance not measured: Lighthouse unavailable in sandbox"
+    },
+    {
+      "id": "U-004", "area": "integrations", "kind": "integration", "target": "Paystack webhooks",
+      "priority": "P1", "expected_source": "Paystack webhook docs; src/api/webhooks.ts comments",
+      "check_classes": ["integration"], "status": "blocked",
+      "blocked_reason": "No webhook signing secret for the test environment",
+      "checks_performed": [],
+      "source_files": ["src/api/webhooks.ts"]
+    }
+  ]
+}

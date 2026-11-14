@@ -1,0 +1,13 @@
+{
+  "run": 1,
+  "repo": "demo-shop",
+  "target": "http://localhost:3000",
+  "build": "a1b2c3d",
+  "mode": "full",
+  "fixing_allowed": true,
+  "separation": "parallel",
+  "branch": "qa-audit/run-1",
+  "assumptions": [],
+  "started_at": "2026-11-14T09:00:00Z",
+  "finished_at": "2026-11-14T13:20:00Z"
+}

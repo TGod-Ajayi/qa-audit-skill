@@ -1,0 +1,20 @@
+name: test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm test
+      - name: Validate example run
+        run: |
+          node skills/qa-audit/scripts/validate-coverage-ledger.cjs examples/sample-run/coverage-ledger.json
+          node skills/qa-audit/scripts/validate-findings.cjs examples/sample-run/findings.json --ledger examples/sample-run/coverage-ledger.json
+          node skills/qa-audit/scripts/generate-report.cjs examples/sample-run
+          git diff --exit-code examples/sample-run

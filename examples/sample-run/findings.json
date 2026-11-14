@@ -1,0 +1,67 @@
+{
+  "run": 1,
+  "build": "a1b2c3d",
+  "findings": [
+    {
+      "id": "QA-001", "unit": "U-002", "title": "Double-clicking Pay creates two orders and two charges",
+      "verdict": "confirmed", "severity": "S1",
+      "impact": "Customers are charged twice for one purchase",
+      "likelihood": "Common on slow connections where the first click seems to do nothing",
+      "expected": "One order and one charge per checkout",
+      "expected_source": "docs/spec.md#checkout: 'each checkout creates exactly one order'",
+      "observed": "Two POST /api/orders requests, two orders, two Paystack charges",
+      "minimal_repro": ["Add any item to cart", "Go to /checkout with Paystack test card", "Double-click Pay"],
+      "environment": {"url": "http://localhost:3000/checkout", "browser": "chromium", "viewport": "1440x900", "build": "a1b2c3d"},
+      "evidence": ["evidence/QA-001-network.har", "evidence/QA-001-orders.png"],
+      "root_cause_hypothesis": {"location": "src/routes/checkout.tsx:88", "reasoning": "Pay button not disabled while request pending; API has no idempotency key"},
+      "repro_rate": "3/3",
+      "fix": {
+        "verdict": "fixed", "commit": "f00dbab", "test_file": "tests/e2e/checkout-double-submit.spec.ts",
+        "test_failed_before": true, "test_passes_after": true, "verified_by_independent_agent": true, "rounds": 1,
+        "notes": "Disabled button while pending and added idempotency key on POST /api/orders"
+      }
+    },
+    {
+      "id": "QA-002", "unit": "U-001", "title": "Sign-up rejects names with apostrophes or diacritics",
+      "verdict": "confirmed", "severity": "S2",
+      "impact": "Users with common Nigerian and Irish names cannot sign up with their real name",
+      "likelihood": "Frequent for the target audience",
+      "expected": "Names with apostrophes and diacritics are accepted",
+      "expected_source": "docs/spec.md#signup: 'accept any real name'",
+      "observed": "'Name contains invalid characters' for Adébáyọ̀ and O'Neil",
+      "minimal_repro": ["Open /signup", "Enter name O'Neil", "Submit"],
+      "environment": {"url": "http://localhost:3000/signup", "browser": "chromium", "viewport": "1440x900", "build": "a1b2c3d"},
+      "evidence": ["evidence/QA-002-error.png"],
+      "root_cause_hypothesis": {"location": "src/lib/validation.ts:12", "reasoning": "Name regex is /^[A-Za-z ]+$/"},
+      "repro_rate": "3/3",
+      "fix": null
+    },
+    {
+      "id": "QA-003", "unit": "U-003", "title": "Product grid overflows horizontally at 375px",
+      "verdict": "flaky", "severity": "S3",
+      "impact": "Sideways scrolling on phones; layout looks broken",
+      "likelihood": "Only when a product title has a very long unbroken word",
+      "expected": "No horizontal scroll at 375px",
+      "expected_source": "Design system: responsive breakpoints",
+      "observed": "Page width 412px at 375px viewport",
+      "minimal_repro": ["Open /products at 375x812", "Scroll to a product with a long title"],
+      "evidence": ["evidence/QA-003-overflow.png"],
+      "repro_rate": "4/10",
+      "fix": null
+    },
+    {
+      "id": "QA-004", "unit": "U-004", "title": "Webhook replay behaviour unverified",
+      "verdict": "needs_validation", "severity": null,
+      "blocking_fact": "Need a test webhook signing secret to send signed sandbox events",
+      "fix": null
+    },
+    {
+      "id": "QA-005", "unit": "U-003", "title": "Filter chips misaligned",
+      "verdict": "rejected", "severity": null,
+      "rejection_reason": "Matches the design file; tester expectation had no source"
+    }
+  ],
+  "suggestions": [
+    {"unit": "U-002", "text": "Show the delivery fee before the payment step"}
+  ]
+}
