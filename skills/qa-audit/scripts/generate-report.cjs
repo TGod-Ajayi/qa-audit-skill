@@ -1,13 +1,18 @@
 #!/usr/bin/env node
 'use strict';
 // Generates REPORT.md, FINDINGS-DETAIL.md, NEEDS-VALIDATION.md, COVERAGE.md and SUGGESTIONS.md
-// from findings.json + coverage-ledger.json (+ optional run.json). Zero dependencies.
+// from run.json, coverage-ledger.json and findings.json. Every input is validated
+// first; the generator refuses to report from invalid records. Zero dependencies.
+//
 // Usage: node generate-report.cjs <run-dir>
+// Exit codes: 0 written, 1 invalid records, 2 unreadable input or usage error.
 
 const fs = require('fs');
 const path = require('path');
+const { readJsonFile } = require('./lib/common.cjs');
 const { validateLedger } = require('./validate-coverage-ledger.cjs');
 const { validateFindings } = require('./validate-findings.cjs');
+const { validateRun, isPartialRun } = require('./validate-run.cjs');
 
 const SEV_ORDER = { S1: 1, S2: 2, S3: 3, S4: 4 };
 const SUMMARY_START = '<!-- summary:start -->';
@@ -18,7 +23,7 @@ const isOpen = (f) => isProven(f) && (!f.fix || f.fix.verdict !== 'fixed');
 const bySeverity = (a, b) => (SEV_ORDER[a.severity] || 9) - (SEV_ORDER[b.severity] || 9) || a.id.localeCompare(b.id);
 const esc = (s) => String(s == null ? '' : s).replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
-function computeVerdict(findingsDoc, ledger) {
+function computeVerdict(findingsDoc, ledger, run = null) {
   const findings = findingsDoc.findings;
   const units = new Map(ledger.units.map((u) => [u.id, u]));
   const isP0 = (f) => (units.get(f.unit) || {}).priority === 'P0';
@@ -29,16 +34,20 @@ function computeVerdict(findingsDoc, ledger) {
   for (const f of open.filter((f) => f.severity === 'S1')) stop.push(`Open S1 ${f.id}: ${f.title}`);
   for (const f of open.filter((f) => f.severity === 'S2' && isP0(f))) stop.push(`Open S2 on P0 unit ${f.unit} — ${f.id}: ${f.title}`);
   for (const u of p0Units.filter((u) => u.status === 'blocked' || u.status === 'pending')) stop.push(`P0 unit ${u.id} (${u.target}) is ${u.status}`);
+  for (const f of open.filter((f) => f.check_class === 'security' && f.severity === 'S2')) stop.push(`Open security S2 ${f.id}: ${f.title}`);
   for (const f of findings.filter((f) => f.fix && f.fix.verdict === 'regressed')) stop.push(`Fix for ${f.id} regressed`);
   if (stop.length) return { verdict: "Don't ship", reasons: stop };
 
   const caveats = [];
+  if (run && run.run_status === 'incomplete') caveats.push(`Run incomplete (${run.incomplete_reason}); untested areas carry unknown risk`);
+  if (run && isPartialRun(run)) caveats.push(`Partial run (${run.mode}/${run.profile}${run.scope.length ? `, scope: ${run.scope.join(', ')}` : ''}); this verdict covers only what was in scope`);
+  for (const f of findings.filter((f) => f.verdict === 'needs_validation' && f.security_referral)) caveats.push(`Security referral ${f.id} not yet reviewed: ${f.title}`);
   for (const f of open.filter((f) => f.severity === 'S2' || f.severity === 'S3')) caveats.push(`Open ${f.severity} ${f.id}: ${f.title}`);
   for (const f of open.filter((f) => f.verdict === 'flaky' && SEV_ORDER[f.severity] <= 2 && !caveats.some((c) => c.includes(f.id)))) {
     caveats.push(`Flaky ${f.severity} ${f.id}: ${f.title}`);
   }
   for (const u of p0Units.filter((u) => u.status === 'partial')) caveats.push(`P0 unit ${u.id} (${u.target}) only partially covered`);
-  for (const f of findings.filter((f) => f.verdict === 'needs_validation' && isP0(f))) caveats.push(`Unresolved lead on P0 unit ${f.unit} — ${f.id}: ${f.blocking_fact}`);
+  for (const f of findings.filter((f) => f.verdict === 'needs_validation' && !f.security_referral && isP0(f))) caveats.push(`Unresolved lead on P0 unit ${f.unit} — ${f.id}: ${f.blocking_fact}`);
   if (caveats.length) return { verdict: 'Ship with known issues', reasons: caveats };
   return { verdict: 'Ship', reasons: ['No open S1/S2-on-P0, all P0 units covered, no regressed fixes'] };
 }
@@ -49,7 +58,7 @@ function table(headers, rows) {
 }
 
 function renderReport(findingsDoc, ledger, run, previousReport) {
-  const { verdict, reasons } = computeVerdict(findingsDoc, ledger);
+  const { verdict, reasons } = computeVerdict(findingsDoc, ledger, run);
   const f = findingsDoc.findings;
   const proven = f.filter(isProven);
   const fixed = proven.filter((x) => x.fix && x.fix.verdict === 'fixed');
@@ -64,13 +73,21 @@ function renderReport(findingsDoc, ledger, run, previousReport) {
     summary = previousReport.slice(previousReport.indexOf(SUMMARY_START), previousReport.indexOf(SUMMARY_END) + SUMMARY_END.length);
   }
 
-  const gaps = units.filter((u) => u.status !== 'covered').sort((a, b) => a.priority.localeCompare(b.priority));
+  const gaps = units.filter((u) => u.status !== 'covered' && u.status !== 'out_of_scope')
+    .sort((a, b) => a.priority.localeCompare(b.priority) || a.id.localeCompare(b.id));
+  const classes = [...new Set(proven.map((x) => x.check_class))].sort();
+  const banner = run.run_status === 'in_progress'
+    ? '> **Draft:** the run is still in progress. Numbers will change.'
+    : run.run_status === 'incomplete' ? `> **Incomplete run:** ${run.incomplete_reason}. Coverage below is partial.` : null;
   const lines = [
-    `# QA audit report — ${run.repo || 'target'} (run ${findingsDoc.run})`,
+    `# QA audit report — ${run.repo} (run ${findingsDoc.run})`,
     '',
-    `**Build:** \`${findingsDoc.build}\`  `,
-    run.target ? `**Target:** ${run.target}  ` : null,
-    run.mode ? `**Mode:** ${run.mode}${run.separation === 'sequential' ? ' (sequential roles — weaker separation)' : ''}  ` : null,
+    banner, banner ? '' : null,
+    `**Build:** \`${findingsDoc.build}\`${run.dirty ? ' (dirty worktree)' : ''}  `,
+    `**Target:** ${run.target}${run.environment ? ` (${run.environment})` : ''}  `,
+    `**Mode:** ${run.mode}, profile ${run.profile}${run.scope.length ? `, scope ${run.scope.join(', ')}` : ''}${run.separation === 'sequential' ? ' (sequential roles — weaker separation)' : ''}  `,
+    run.design_sources.length ? `**Design sources:** ${run.design_sources.join('; ')}  ` : null,
+    run.budget !== null ? `**Agent budget:** ${run.agents_used ?? '?'} of ${run.budget} used  ` : null,
     '',
     `## Release verdict: ${verdict}`,
     '',
@@ -86,9 +103,13 @@ function renderReport(findingsDoc, ledger, run, previousReport) {
     `Verdicts: ${count((x) => x.verdict === 'confirmed')} confirmed, ${count((x) => x.verdict === 'flaky')} flaky, ` +
       `${count((x) => x.verdict === 'needs_validation')} needs validation, ${count((x) => x.verdict === 'rejected')} rejected.`,
     '',
+    '### By check class',
+    '',
+    table(['Class', 'Found', 'Fixed', 'Open'], classes.map((c) => [c, proven.filter((x) => x.check_class === c).length,
+      fixed.filter((x) => x.check_class === c).length, open.filter((x) => x.check_class === c).length])),
     '### Open issues',
     '',
-    table(['ID', 'Sev', 'Verdict', 'Unit', 'Title', 'Fix status'], open.map((x) => [x.id, x.severity, x.verdict, x.unit, x.title, x.fix ? x.fix.verdict : 'not attempted'])),
+    table(['ID', 'Sev', 'Class', 'Verdict', 'Unit', 'Title', 'Fix status'], open.map((x) => [x.id, x.severity, x.check_class, x.verdict, x.unit, x.title, x.fix ? x.fix.verdict : 'not attempted'])),
     '### Fixed',
     '',
     table(['ID', 'Sev', 'Title', 'Commit', 'Regression test'], fixed.sort(bySeverity).map((x) => [x.id, x.severity, x.title, x.fix.commit, x.fix.test_file])),
@@ -96,10 +117,11 @@ function renderReport(findingsDoc, ledger, run, previousReport) {
     '',
     '## Coverage',
     '',
-    `${units.length} units: ${ustat('covered')} covered, ${ustat('partial')} partial, ${ustat('blocked')} blocked, ${ustat('pending')} not tested. See COVERAGE.md.`,
+    `${units.length} units: ${ustat('covered')} covered, ${ustat('partial')} partial, ${ustat('blocked')} blocked, ${ustat('pending')} not tested, ${ustat('deferred')} deferred, ${ustat('out_of_scope')} out of scope. See COVERAGE.md.`,
     '',
     '## Next run focus',
     '',
+    ...f.filter((x) => x.security_referral).map((x) => `- Security review for ${x.id}: ${x.title}`),
     ...(gaps.length ? gaps.slice(0, 8).map((u) => `- ${u.id} [${u.priority}] ${u.target} — ${u.status}${u.blocked_reason ? ` (${u.blocked_reason})` : ''}`) : ['- Re-run full audit after the next significant release; repeated runs find more.']),
     '',
   ];
@@ -112,7 +134,8 @@ function renderDetail(findingsDoc) {
   if (!proven.length) out.push('_No confirmed or flaky findings._', '');
   for (const f of proven) {
     out.push(`## ${f.id} [${f.severity}] ${f.title}`, '');
-    out.push(`- **Verdict:** ${f.verdict} (${f.repro_rate})`, `- **Unit:** ${f.unit}`);
+    out.push(`- **Verdict:** ${f.verdict} (${f.repro_rate})`, `- **Class:** ${f.check_class}`, `- **Unit:** ${f.unit}`,
+      `- **Found by:** ${f.found_by}; **reproduced by:** ${f.reproduced_by}`);
     if (f.environment) out.push(`- **Environment:** ${Object.entries(f.environment).map(([k, v]) => `${k}: ${v}`).join(', ')}`);
     out.push(`- **Impact:** ${f.impact}`, `- **Likelihood:** ${f.likelihood}`, '');
     out.push('**Minimal repro**', '', ...f.minimal_repro.map((s, i) => `${i + 1}. ${s}`), '');
@@ -120,7 +143,9 @@ function renderDetail(findingsDoc) {
     if (f.root_cause_hypothesis) out.push(`**Root cause (hypothesis):** \`${f.root_cause_hypothesis.location}\` — ${f.root_cause_hypothesis.reasoning}`, '');
     out.push(`**Evidence:** ${f.evidence.map((e) => `\`${e}\``).join(', ')}`, '');
     if (f.fix) {
-      out.push(`**Fix:** ${f.fix.verdict}${f.fix.commit ? ` in \`${f.fix.commit}\`` : ''}${f.fix.test_file ? `, test \`${f.fix.test_file}\`` : ''}${f.fix.rounds ? `, ${f.fix.rounds} round(s)` : ''}`);
+      out.push(`**Fix:** ${f.fix.verdict}${f.fix.commit ? ` in \`${f.fix.commit}\`` : ''}${f.fix.test_file ? `, test \`${f.fix.test_file}\`` : ''}${f.fix.rounds ? `, ${f.fix.rounds} round(s)` : ''}` +
+        `${f.fix.fixer ? `; fixed by ${f.fix.fixer}, verified by ${f.fix.verifier}` : ''}`);
+      if (f.fix.evidence && f.fix.evidence.length) out.push(`  Fix evidence: ${f.fix.evidence.map((e) => `\`${e}\``).join(', ')}`);
       if (f.fix.notes) out.push(`  ${f.fix.notes}`);
       out.push('');
     }
@@ -137,7 +162,7 @@ function renderNeedsValidation(findingsDoc) {
     `# Needs validation (run ${findingsDoc.run})`, '',
     'Leads grounded in evidence but blocked by one unresolved fact. Severity is not assigned until resolved.', '',
     '## Security referrals', '',
-    'Observed by QA and **not probed**. Route these to a dedicated security review.', '',
+    'Observed by QA and **not probed**. Route these to a dedicated security review (for example, the security-audit skill).', '',
     table(['ID', 'Unit', 'Title', 'Observed'], sec.map((f) => [f.id, f.unit, f.title, f.observed || ''])),
     '## Blocked leads', '',
     table(['ID', 'Unit', 'Title', 'Blocking fact'], rest.map((f) => [f.id, f.unit, f.title, f.blocking_fact])),
@@ -154,7 +179,8 @@ function renderCoverage(ledger) {
     const missing = [...assigned].filter((c) => !done.has(c));
     return [area, au.length, [...done].sort().join(', ') || '—', missing.sort().join(', ') || '—'];
   });
-  const gaps = units.filter((u) => u.status !== 'covered');
+  const gaps = units.filter((u) => u.status !== 'covered' && u.status !== 'out_of_scope');
+  const outOfScope = units.filter((u) => u.status === 'out_of_scope');
   return [
     `# Coverage (run ${ledger.run}, build \`${ledger.build}\`)`, '',
     '"Not tested" means not tested — it is not evidence that something works.', '',
@@ -162,6 +188,9 @@ function renderCoverage(ledger) {
     table(['Journey', 'Unit', 'Status'], ledger.p0_journeys.map((j) => [j.name, j.unit, (ledger.units.find((u) => u.id === j.unit) || {}).status || '?'])),
     '## Gaps', '',
     table(['Unit', 'Priority', 'Target', 'Status', 'Reason / notes'], gaps.map((u) => [u.id, u.priority, u.target, u.status, u.blocked_reason || u.notes || ''])),
+    '## Out of scope', '',
+    'Deliberately not tested in this run. Not evidence of anything.', '',
+    table(['Unit', 'Priority', 'Target', 'Reason'], outOfScope.map((u) => [u.id, u.priority, u.target, u.blocked_reason])),
     '## Check classes by area', '',
     table(['Area', 'Units', 'Exercised', 'Assigned but not exercised'], classRows),
     '## All units', '',
@@ -172,23 +201,29 @@ function renderCoverage(ledger) {
 function renderSuggestions(findingsDoc) {
   const s = findingsDoc.suggestions || [];
   return [`# Suggestions (run ${findingsDoc.run})`, '', 'Improvements without a sourced expectation. Not bugs; never auto-fixed.', '',
-    table(['Unit', 'Suggestion'], s.map((x) => [x.unit || '—', x.text]))].join('\n');
+    table(['Unit', 'Kind', 'Suggestion'], s.map((x) => [x.unit || '—', x.kind || 'other', x.text]))].join('\n');
 }
 
 function generate(runDir) {
-  const read = (n, optional) => {
-    const p = path.join(runDir, n);
-    if (!fs.existsSync(p)) { if (optional) return null; throw new Error(`Missing ${p}`); }
-    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  const read = (n) => {
+    try { return readJsonFile(path.join(runDir, n)); }
+    catch (e) { const x = new Error(`${n}: ${e.code === 'INPUT' ? e.message : 'cannot read'}`); x.code = 'READ'; throw x; }
   };
+  const run = read('run.json');
   const ledger = read('coverage-ledger.json');
   const findingsDoc = read('findings.json');
-  const run = read('run.json', true) || {};
-  const errors = [...validateLedger(ledger).map((e) => `ledger ${e}`), ...validateFindings(findingsDoc, ledger).map((e) => `findings ${e}`)];
+  const runErrors = validateRun(run).map((e) => `run.json ${e}`);
+  const ledgerErrors = validateLedger(ledger).map((e) => `ledger ${e}`);
+  const errors = [...runErrors, ...ledgerErrors];
+  // Cross-checks need a structurally valid ledger and run.
+  if (!errors.length) errors.push(...validateFindings(findingsDoc, ledger, run).map((e) => `findings ${e}`));
+  if (!errors.length && ledger.run !== run.run) errors.push('ledger $.run: does not match run.json');
+  if (!errors.length && ledger.build !== run.build) errors.push('ledger $.build: does not match run.json');
   if (errors.length) { const e = new Error(`Records invalid — fix before reporting:\n- ${errors.join('\n- ')}`); e.code = 'INVALID'; throw e; }
 
   const reportPath = path.join(runDir, 'REPORT.md');
-  const previous = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf8') : null;
+  let previous = null;
+  try { if (fs.lstatSync(reportPath).isFile()) previous = fs.readFileSync(reportPath, 'utf8'); } catch { /* first run */ }
   const files = {
     'REPORT.md': renderReport(findingsDoc, ledger, run, previous),
     'FINDINGS-DETAIL.md': renderDetail(findingsDoc),
@@ -196,8 +231,15 @@ function generate(runDir) {
     'COVERAGE.md': renderCoverage(ledger),
     'SUGGESTIONS.md': renderSuggestions(findingsDoc),
   };
-  for (const [name, body] of Object.entries(files)) fs.writeFileSync(path.join(runDir, name), body.endsWith('\n') ? body : body + '\n');
-  return { verdict: computeVerdict(findingsDoc, ledger), files: Object.keys(files) };
+  for (const [name, body] of Object.entries(files)) {
+    const out = path.join(runDir, name);
+    // Never write through a symlink planted in the run directory.
+    let st = null;
+    try { st = fs.lstatSync(out); } catch { /* new file */ }
+    if (st && !st.isFile()) { const e = new Error(`${name}: refusing to overwrite a non-regular file`); e.code = 'READ'; throw e; }
+    fs.writeFileSync(out, body.endsWith('\n') ? body : body + '\n');
+  }
+  return { verdict: computeVerdict(findingsDoc, ledger, run), files: Object.keys(files) };
 }
 
 module.exports = { computeVerdict, generate, isOpen };

@@ -4,9 +4,11 @@ Leads grounded in evidence but blocked by one unresolved fact. Severity is not a
 
 ## Security referrals
 
-Observed by QA and **not probed**. Route these to a dedicated security review.
+Observed by QA and **not probed**. Route these to a dedicated security review (for example, the security-audit skill).
 
-_None._
+| ID | Unit | Title | Observed |
+|---|---|---|---|
+| QA-010 | U-002 | Order detail API may return another customer's order by id | GET /api/orders/:id handler has no owner check in source; not probed |
 
 ## Blocked leads
 

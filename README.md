@@ -1,85 +1,128 @@
-# qa-audit-skill
+# qa-audit
 
 A coding-agent skill that turns your agent into a **QA lead**. It finds bugs in a web product, proves each one, **fixes it behind a failing regression test**, has a separate agent verify every fix, and ends with a release verdict: **Ship / Ship with known issues / Don't ship**.
 
-It is modelled on the multi-agent, evidence-first design of [Cloudflare's security-audit-skill](https://github.com/cloudflare/security-audit-skill), applied to product quality instead of vulnerabilities. It adds what QA needs and security auditing usually leaves out: **test-first fixing and fix verification**.
+It covers functional behaviour, **design conformance** (against Figma or your design system), **UI/UX consistency**, accessibility, performance, **code quality** and a **passive security hygiene** pass. Every finding needs a cited source, so opinions stay out of the bug list.
 
-```
-npx skills add https://github.com/TGod-Ajayi/qa-audit-skill --skill qa-audit
-```
+It follows the multi-agent, evidence-first design of [Cloudflare's security-audit-skill](https://github.com/cloudflare/security-audit-skill), applied to product quality. It adds what QA needs and security auditing usually leaves out: test-first fixing and independent fix verification.
 
-Then ask your agent things like:
+## What it does
 
-- "QA this app and fix what you find"
-- "Make sure checkout works end to end before launch"
-- "Run a QA pass on staging, report only, don't change code"
-- "Signup is broken for some users, find out why and fix it"
-
----
-
-## Why
-
-Most "AI QA" stops at *"I clicked around and it looked fine."* This skill works differently:
-
-- **Nothing is a bug until a different agent reproduces it.** The tester who reports a candidate never confirms it. A fresh reproducer tries to **disprove** it: it reruns the repro from a clean state at least 3 times, checks that the expected behaviour has a real source, and cuts the bug down to a minimal repro.
-- **Nothing is fixed until a failing test passes.** Every confirmed bug gets a regression test that fails for the right reason *before* the fix. A different agent then reruns the original repro in a real browser and looks for the same bug in sibling code.
-- **Coverage is evidence, not vibes.** A coverage ledger records what was actually exercised, with screenshots, traces and logs. Untested areas are reported as gaps, never counted as passing.
-- **Opinions aren't bugs.** Expected behaviour must cite a source: a spec, a ticket, UI copy, a schema, an API contract, or your own statement. Design taste goes into a separate suggestions list.
-- **Getting to green by cheating isn't allowed.** Fixers may not delete, skip or loosen tests, change expectations to match buggy output, swallow errors or add blind sleeps.
-
-## How it works
+The skill runs a structured audit in eight phases:
 
 | Phase | What happens | Output |
 |---|---|---|
-| 0. Setup and baseline | Work out how to run the app, record the existing test results | `run.json`, `baseline-tests.json` |
-| 1. Reconnaissance | Map routes, roles, entities, forms, APIs, state machines, integrations and **P0 journeys** | `architecture.md`, `coverage-ledger.json` |
-| 2. Coverage-led testing | Isolated tester agents work through ledger units in parallel; a wildcard "real user" persona explores; a coverage critic finds gaps | `candidates/*.json` |
-| 3. Reproduction | A fresh agent tries to disprove every candidate | `confirmed` / `flaky` / `needs_validation` / `rejected` |
+| 0. Setup and baseline | Work out how to run the app, choose the profile and scope, record the existing test results | `run.json`, `baseline-tests.json` |
+| 1. Reconnaissance | Map routes, roles, entities, forms, APIs, state machines, integrations, design sources, quality gates and **P0 journeys** | `architecture.md`, `coverage-ledger.json` |
+| 2. Coverage-led testing | Isolated tester agents work through ledger units in parallel; a wildcard persona explores; a coverage critic finds gaps | `agents/<id>/result.json` |
+| 3. Reproduction | A fresh agent tries to **disprove** every candidate | `confirmed` / `flaky` / `needs_validation` / `rejected` |
 | 4. Structured findings | Schema-checked records | `findings.json` |
 | 5. Fix | Failing test → minimal root-cause fix → full suite → **independent verifier** | One commit per bug on `qa-audit/run-N` |
-| 6. Regression sweep | P0 journeys on Chromium and mobile WebKit, full suite, retest of touched units | New candidates go back to Phase 3 |
+| 6. Regression sweep | P0 journeys on Chromium and mobile WebKit, full suite, quality gates, retest of touched units | New candidates go back to Phase 3 |
 | 7. Report | Generated from the validated records | `REPORT.md`, `FINDINGS-DETAIL.md`, `NEEDS-VALIDATION.md`, `COVERAGE.md`, `SUGGESTIONS.md` |
 
-**Check classes** (QA's version of attack classes): happy-path, input, state and data lifecycle, navigation, auth and roles (functional), error/empty/loading states, timing and concurrency, money, time and locale, integrations, API contract, responsive and cross-browser, accessibility, performance and hygiene. Deeper checklists live in [`skills/qa-audit/checks/`](skills/qa-audit/checks/):
+The verdicts are distinct:
 
-- forms and data
-- auth and accounts
-- payments and money (including Paystack, Flutterwave and Stripe sandboxes)
-- API and integrations
-- async and realtime
-- frontend UX
-- email and notifications
+- `confirmed` reproduced at least 3/3 from a clean state, by an agent other than the one that found it.
+- `flaky` has an intermittent rate from at least 5 attempts.
+- `needs_validation` names one exact unresolved fact and has no severity.
+- `rejected` records why the candidate was disproved.
 
-**Modes:** full audit, focused (one flow or bug), report-only (no code changes), and guidance (questions only).
+Multiple runs against the same repo are additive. The skill reads earlier ledgers and findings, targets the gaps, and re-verifies units whose source files changed.
 
-## Repository layout
+## Files
 
-```
-skills/qa-audit/
-  SKILL.md                 # entry point: modes, principles, terminology, workflow, anti-patterns
-  RECONNAISSANCE.md        # phases 0–1
-  TESTING.md               # phase 2: tester brief, wildcard persona, coverage critic
-  CHECK-CLASSES.md         # core checklist and default classes per unit kind
-  VALIDATION.md            # phases 3–4: reproducer brief, verdicts, severity
-  FIXING.md                # phases 5–6: fixer and fix-verifier briefs, regression sweep
-  REPORTING.md             # phase 7: release verdict rules
-  checks/                  # domain checklists
-  schemas/                 # JSON Schemas for the ledger and findings
-  scripts/
-    validate-coverage-ledger.cjs
-    validate-findings.cjs
-    generate-report.cjs
-    tests/                 # node:test suites
-examples/sample-run/       # a complete example run with generated reports
-```
+| File | Purpose |
+|------|---------|
+| `skills/qa-audit/SKILL.md` | Modes, terminology, execution safety, setup, write isolation, profiles, budget, principles, workflow, anti-patterns |
+| `RECONNAISSANCE.md` | Phases 0–1: run setup, baseline, architecture map, ledger |
+| `TESTING.md` | Phase 2: tester brief, wildcard persona, coverage critic |
+| `CHECK-CLASSES.md` | The 19 check classes, default classes per unit kind, and what counts as a source |
+| `VALIDATION.md` | Phases 3–4: reproducer brief, verdict rules, severity, findings records |
+| `FIXING.md` | Phases 5–6: fixer and verifier briefs, fix records, regression sweep |
+| `REPORTING.md` | Phase 7: release verdict rules |
+| `checks/forms-and-data.md` | Input validation and the data lifecycle |
+| `checks/auth-and-accounts.md` | Sign-up, login, sessions, password reset, roles |
+| `checks/payments-and-money.md` | Minor units, Paystack, Flutterwave and Stripe sandboxes, webhooks, refunds |
+| `checks/api-and-integrations.md` | API contracts, third-party services, storage, background jobs |
+| `checks/async-and-realtime.md` | Double submits, races, retries, realtime |
+| `checks/frontend-ux.md` | Responsive, cross-browser, accessibility, lab performance |
+| `checks/design-and-ux.md` | Design conformance and UI/UX consistency and heuristics |
+| `checks/navigation-and-search.md` | Routing, deep links, redirects, search, filters, pagination |
+| `checks/time-and-locale.md` | Timezones, DST, locale formats, translations, RTL |
+| `checks/files-and-media.md` | Uploads, images, downloads, exports |
+| `checks/email-and-notifications.md` | Email, SMS, push and in-app notifications |
+| `checks/code-quality.md` | Project quality gates, error handling, duplication, tests, dependencies |
+| `checks/security-hygiene.md` | Passive security checks; everything else is a referral |
+| `schemas/*.schema.json` | JSON Schemas for `run.json`, `coverage-ledger.json` and `findings.json` |
+| `scripts/validate-run.cjs` | Validator for `run.json` |
+| `scripts/validate-coverage-ledger.cjs` | Validator for the ledger |
+| `scripts/validate-findings.cjs` | Validator for findings, with ledger and run cross-checks |
+| `scripts/generate-report.cjs` | Report generator; refuses to run on invalid records |
+| `scripts/tests/` | `node:test` suites for the validators, the generator, the CLIs and doc consistency |
+| `examples/sample-run/` | A complete example run with generated reports |
 
-The scripts have **no dependencies**; you only need Node.js 18 or later.
+The phase, check, schema and script files live in `skills/qa-audit/`.
+
+## Installation
+
+Install the skill with the [Skills CLI](https://skills.sh):
 
 ```bash
+npx skills add https://github.com/TGod-Ajayi/qa-audit-skill --skill qa-audit
+```
+
+Use `--global` for a user-level installation:
+
+```bash
+npx skills add https://github.com/TGod-Ajayi/qa-audit-skill --skill qa-audit --global
+```
+
+Run `npx skills --help` for agent-selection and non-interactive options.
+
+## Usage
+
+Start your coding agent in the repository of the app you want to test, then ask:
+
+```
+QA this app and fix what you find
+```
+
+```
+check the checkout flow matches the Figma file
+```
+
+```
+run a quick QA pass on staging, report only, don't change code
+```
+
+```
+signup is broken for some users, find out why and fix it
+```
+
+The skill picks full, focused, report-only or guidance mode from the request. In full audit mode, run artifacts go to `~/qa-audit/<repo>/run-N/`, outside your repo. Code changes go only on the branch `qa-audit/run-N`.
+
+**Profiles:** `quick` is a fast first look, `standard` is the default, and `deep` is for launches. You can also scope a run to paths or journeys and set an agent budget. Partial and over-budget runs are reported as partial and never claim full coverage.
+
+## Validators
+
+The scripts have **no dependencies**; you only need Node.js 18 or later. The validators enforce the bundled JSON Schemas exactly (unknown fields are errors), then the semantic rules:
+
+- the evidence bar for each verdict
+- a finder never reproduces its own bug, and a fixer never verifies its own fix
+- fix proof: the test failed before, passes after, the suite is no worse than baseline, and an independent verifier signed off
+- evidenced coverage for every unit marked `covered`
+- safe relative evidence paths
+- consistency between the run, ledger and findings records
+
+They read input defensively: regular files only, no symlinks, size and depth limits, strict UTF-8, and escaped diagnostics.
+
+```bash
+node skills/qa-audit/scripts/validate-run.cjs <run>/run.json
 node skills/qa-audit/scripts/validate-coverage-ledger.cjs <run>/coverage-ledger.json
-node skills/qa-audit/scripts/validate-findings.cjs <run>/findings.json --ledger <run>/coverage-ledger.json
+node skills/qa-audit/scripts/validate-findings.cjs <run>/findings.json --ledger <run>/coverage-ledger.json --run <run>/run.json
 node skills/qa-audit/scripts/generate-report.cjs <run>
-npm test   # runs the script test suites
+npm test
 ```
 
 See [`examples/sample-run/REPORT.md`](examples/sample-run/REPORT.md) for what a finished run looks like.
@@ -87,30 +130,35 @@ See [`examples/sample-run/REPORT.md`](examples/sample-run/REPORT.md) for what a 
 ## Requirements
 
 - A coding agent with tool use and **parallel sub-agents**, such as Claude Code. Without sub-agents, the skill runs each role in sequence from the written records and flags the weaker separation in the report.
-- **Playwright**: the Playwright MCP server, `@playwright/cli`, or `@playwright/test`.
-- Your project's test runner.
-- A local, preview or staging environment. The skill will not test production unless you say so, and even then it stays read-only.
+- **Playwright**: the Playwright MCP server, `@playwright/cli` or `@playwright/test`.
+- Your project's test runner, and its lint, typecheck and build commands.
+- A local, preview or staging environment. The skill does not test production unless you say so, and even then it stays read-only.
 - Test accounts, sandbox payment keys and a test inbox (Mailpit, MailHog, Mailosaur…). Without them, the related checks are marked `blocked` rather than faked.
+- Optional: a Figma file (via the Figma MCP server) or a design system for `design` checks.
 
-**Optional:** if the [Snagly](https://claude.com/plugins) QA skills are installed, qa-audit hands specialist checks to them (flow-runner, form-fuzzing, accessibility-audit, cross-browser-matrix, bug-triage, fix-verifier, e2e-codegen…). Verdicts and fix proof still come from qa-audit's own phases.
+**Optional:** if the [Snagly](https://claude.com/plugins) QA skills are installed, qa-audit hands specialist checks to them: flow-runner, form-fuzzing, accessibility-audit, cross-browser-matrix, figma-compare, visual-regression, bug-triage, fix-verifier, e2e-codegen and others. Verdicts and fix proof still come from qa-audit's own phases.
+
+## Design principles
+
+- **Nothing is a bug until a different agent reproduces it.** The tester never confirms its own candidate.
+- **Nothing is fixed until a failing test passes.** A different agent then re-runs the original repro and hunts for the same bug in sibling code.
+- **Opinions aren't bugs.** Every finding cites its expected behaviour: a spec, a Figma frame, a design token, the app's own convention on another screen, WCAG, the project's lint config, or your statement. Taste goes into a separate suggestions list.
+- **Coverage is evidence.** Untested areas are reported as gaps, never counted as passing.
+- **Severity is user impact × likelihood**, not the number of checklist items that failed.
+- **No cheating to green.** Fixers may not delete, skip or loosen tests, change expectations to match buggy output, swallow errors or add blind sleeps.
+- **Multiple runs improve coverage.** Each run targets the gaps the last one left.
 
 ## Safety
 
-- Code changes go only on the branch `qa-audit/run-N`. The skill never commits to your default branch, pushes or opens PRs unless you ask.
-- Run artifacts are written to `~/qa-audit/<repo>/run-N/` by default, outside your repo.
 - Only test data: no real emails, no real payments, no real customer records.
-- This is **not** a security audit. Anything that looks exploitable is recorded as a `security_referral` and never probed. Use a dedicated security tool for that.
-
-## Tips
-
-- **Run it more than once.** Each run reads the earlier ledgers, goes after the gaps, and re-verifies anything whose source changed.
-- Give it your spec or PRD. Better expected-behaviour sources mean fewer false positives.
-- Tell it your P0 journeys if you know them, and what "can't ship" means for your team.
+- Security checks are **passive**: secrets in the bundle, cookie flags, headers, CORS config, known-vulnerable dependencies, and auth enforced only in the UI (checked with QA's own test accounts). Anything that would need probing is recorded as a `security_referral` and never probed. For a real security audit, use [security-audit-skill](https://github.com/cloudflare/security-audit-skill).
+- Secrets found are redacted to their first 4 characters and never committed.
+- The skill never commits to your default branch, pushes or opens PRs unless you ask.
 
 ## Contributing
 
-Issues and PRs are welcome, especially new domain checklists in `checks/` (mobile web, PWAs, e-learning, marketplaces…) and improvements to the validators. Please add or update tests in `skills/qa-audit/scripts/tests/` and run `npm test`.
+See [CONTRIBUTING.md](CONTRIBUTING.md). New domain checklists in `checks/` (mobile web, PWAs, e-learning, marketplaces…) and validator improvements are especially welcome.
 
 ## License
 
-MIT © Thankgod Olusegun Ajayi ([@TGod-Ajayi](https://github.com/TGod-Ajayi))
+MIT © Thankgod Olusegun Ajayi ([@TGod-Ajayi](https://github.com/TGod-Ajayi)). See [LICENSE](LICENSE).

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/TGod-Ajayi/qa-audit-skill/schemas/run.schema.json",
+  "title": "QA audit run metadata",
+  "description": "Structural contract for run.json. validate-run.cjs enforces this schema exactly, then applies the run-status and profile rules in SKILL.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run", "repo", "target", "build", "dirty", "mode", "profile", "scope", "budget", "fixing_allowed", "separation", "branch", "assumptions", "design_sources", "run_status", "started_at", "finished_at"],
+  "properties": {
+    "run": {"type": "integer", "minimum": 1},
+    "repo": {"type": "string", "minLength": 1},
+    "target": {"type": "string", "minLength": 1},
+    "environment": {"enum": ["local", "preview", "staging", "production-read-only"]},
+    "build": {"type": "string", "pattern": "^[0-9a-f]{7,64}$"},
+    "dirty": {"type": "boolean"},
+    "mode": {"enum": ["full", "focused", "report-only"]},
+    "profile": {"enum": ["quick", "standard", "deep"]},
+    "scope": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "budget": {"type": ["integer", "null"], "minimum": 1},
+    "agents_used": {"type": "integer", "minimum": 0},
+    "fixing_allowed": {"type": "boolean"},
+    "separation": {"enum": ["parallel", "sequential"]},
+    "branch": {"type": ["string", "null"], "pattern": "^qa-audit/run-\\d+$"},
+    "assumptions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "design_sources": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "prior_runs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "run_status": {"enum": ["in_progress", "complete", "incomplete"]},
+    "incomplete_reason": {"type": ["string", "null"]},
+    "stop_reason": {"type": "string", "minLength": 1},
+    "started_at": {"type": "string", "minLength": 1},
+    "finished_at": {"type": ["string", "null"]}
+  }
+}

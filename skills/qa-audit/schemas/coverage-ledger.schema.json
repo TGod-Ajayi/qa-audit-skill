@@ -2,15 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/TGod-Ajayi/qa-audit-skill/schemas/coverage-ledger.schema.json",
   "title": "QA audit coverage ledger",
+  "description": "Structural contract. validate-coverage-ledger.cjs enforces this schema exactly, then applies the semantic rules described in SKILL.md and TESTING.md.",
   "type": "object",
+  "additionalProperties": false,
   "required": ["run", "build", "p0_journeys", "units"],
   "properties": {
     "run": {"type": "integer", "minimum": 1},
-    "build": {"type": "string", "minLength": 1},
+    "build": {"type": "string", "pattern": "^[0-9a-f]{7,64}$"},
     "p0_journeys": {
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["name", "unit"],
         "properties": {
           "name": {"type": "string", "minLength": 1},
@@ -22,35 +25,43 @@
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["id", "area", "kind", "target", "priority", "expected_source", "check_classes", "status", "checks_performed", "source_files"],
         "properties": {
           "id": {"type": "string", "pattern": "^U-\\d{3,}$"},
           "area": {"type": "string", "minLength": 1},
-          "kind": {"enum": ["journey", "page", "form", "entity", "api", "state", "integration", "cross-cutting"]},
+          "kind": {"enum": ["journey", "page", "form", "entity", "api", "state", "integration", "cross-cutting", "code"]},
           "target": {"type": "string", "minLength": 1},
           "priority": {"enum": ["P0", "P1", "P2"]},
           "expected_source": {"type": "string", "minLength": 1},
           "check_classes": {
             "type": "array",
             "minItems": 1,
-            "items": {"enum": ["happy-path", "input", "state", "navigation", "auth", "errors", "timing", "money", "time-locale", "integration", "contract", "responsive", "a11y", "performance", "hygiene"]}
+            "uniqueItems": true,
+            "items": {"enum": ["happy-path", "input", "state", "navigation", "auth", "errors", "timing", "money", "time-locale", "integration", "contract", "responsive", "a11y", "performance", "hygiene", "design", "ux", "code-quality", "security"]}
           },
-          "status": {"enum": ["pending", "covered", "partial", "blocked"]},
+          "status": {"enum": ["pending", "covered", "partial", "blocked", "deferred", "out_of_scope"]},
           "blocked_reason": {"type": ["string", "null"]},
+          "assigned_to": {"type": ["string", "null"], "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"},
           "checks_performed": {
             "type": "array",
             "items": {
               "type": "object",
+              "additionalProperties": false,
               "required": ["class", "check", "result", "evidence"],
               "properties": {
-                "class": {"type": "string"},
+                "class": {"type": "string", "minLength": 1},
                 "check": {"type": "string", "minLength": 1},
                 "result": {"enum": ["pass", "fail", "blocked"]},
-                "evidence": {"type": "array", "items": {"type": "string"}}
+                "evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+                "browser": {"type": "string", "minLength": 1},
+                "viewport": {"type": "string", "pattern": "^\\d{2,5}x\\d{2,5}$"},
+                "role": {"type": "string", "minLength": 1}
               }
             }
           },
-          "source_files": {"type": "array", "items": {"type": "string"}},
+          "source_files": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "carried_from_run": {"type": "integer", "minimum": 1},
           "notes": {"type": "string"}
         }
       }

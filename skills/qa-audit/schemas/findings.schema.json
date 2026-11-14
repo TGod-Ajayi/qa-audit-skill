@@ -2,63 +2,78 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/TGod-Ajayi/qa-audit-skill/schemas/findings.schema.json",
   "title": "QA audit findings",
+  "description": "Structural contract. validate-findings.cjs enforces this schema exactly, then applies the per-verdict rules in VALIDATION.md and the fix-proof rules in FIXING.md.",
   "type": "object",
+  "additionalProperties": false,
   "required": ["run", "build", "findings"],
   "properties": {
     "run": {"type": "integer", "minimum": 1},
-    "build": {"type": "string", "minLength": 1},
+    "build": {"type": "string", "pattern": "^[0-9a-f]{7,64}$"},
     "findings": {
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["id", "unit", "title", "verdict", "severity"],
         "properties": {
           "id": {"type": "string", "pattern": "^QA-\\d{3,}$"},
-          "unit": {"type": "string"},
-          "title": {"type": "string", "minLength": 1},
+          "unit": {"type": "string", "pattern": "^(U-\\d{3,}|WILDCARD)$"},
+          "title": {"type": "string", "minLength": 1, "maxLength": 200},
           "verdict": {"enum": ["confirmed", "flaky", "needs_validation", "rejected"]},
           "severity": {"enum": ["S1", "S2", "S3", "S4", null]},
-          "impact": {"type": "string"},
-          "likelihood": {"type": "string"},
-          "expected": {"type": "string"},
-          "expected_source": {"type": "string"},
-          "observed": {"type": "string"},
-          "minimal_repro": {"type": "array", "items": {"type": "string"}},
+          "check_class": {"enum": ["happy-path", "input", "state", "navigation", "auth", "errors", "timing", "money", "time-locale", "integration", "contract", "responsive", "a11y", "performance", "hygiene", "design", "ux", "code-quality", "security"]},
+          "impact": {"type": "string", "minLength": 1},
+          "likelihood": {"type": "string", "minLength": 1},
+          "expected": {"type": "string", "minLength": 1},
+          "expected_source": {"type": "string", "minLength": 1},
+          "observed": {"type": "string", "minLength": 1},
+          "minimal_repro": {"type": "array", "items": {"type": "string", "minLength": 1}},
           "environment": {
             "type": "object",
+            "additionalProperties": false,
             "properties": {
-              "url": {"type": "string"},
-              "browser": {"type": "string"},
-              "viewport": {"type": "string"},
-              "build": {"type": "string"}
+              "url": {"type": "string", "minLength": 1},
+              "browser": {"type": "string", "minLength": 1},
+              "viewport": {"type": "string", "pattern": "^\\d{2,5}x\\d{2,5}$"},
+              "role": {"type": "string", "minLength": 1},
+              "build": {"type": "string", "minLength": 1}
             }
           },
-          "evidence": {"type": "array", "items": {"type": "string"}},
+          "evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
           "root_cause_hypothesis": {
             "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["location", "reasoning"],
             "properties": {
-              "location": {"type": "string"},
-              "reasoning": {"type": "string"}
+              "location": {"type": "string", "minLength": 1},
+              "reasoning": {"type": "string", "minLength": 1}
             }
           },
           "repro_rate": {"type": "string", "pattern": "^\\d+/\\d+$"},
+          "found_by": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"},
+          "reproduced_by": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"},
           "blocking_fact": {"type": ["string", "null"]},
           "rejection_reason": {"type": ["string", "null"]},
           "security_referral": {"type": "boolean"},
-          "source_candidates": {"type": "array", "items": {"type": "string"}},
-          "first_seen_run": {"type": "integer"},
+          "source_candidates": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "first_seen_run": {"type": "integer", "minimum": 1},
           "notes": {"type": "string"},
           "fix": {
             "type": ["object", "null"],
+            "additionalProperties": false,
             "required": ["verdict"],
             "properties": {
               "verdict": {"enum": ["fixed", "not_fixed", "regressed", "needs_human"]},
-              "commit": {"type": "string"},
-              "test_file": {"type": "string"},
+              "commit": {"type": "string", "pattern": "^[0-9a-f]{7,64}$"},
+              "test_file": {"type": "string", "minLength": 1},
               "test_failed_before": {"type": "boolean"},
               "test_passes_after": {"type": "boolean"},
+              "suite_no_worse_than_baseline": {"type": "boolean"},
               "verified_by_independent_agent": {"type": "boolean"},
+              "fixer": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"},
+              "verifier": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"},
               "rounds": {"type": "integer", "minimum": 1},
+              "evidence": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
               "notes": {"type": "string"}
             }
           }
@@ -69,9 +84,11 @@
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["text"],
         "properties": {
-          "unit": {"type": "string"},
+          "unit": {"type": "string", "pattern": "^(U-\\d{3,}|WILDCARD)$"},
+          "kind": {"enum": ["ux", "design", "copy", "performance", "code-quality", "security", "other"]},
           "text": {"type": "string", "minLength": 1}
         }
       }

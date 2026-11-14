@@ -6,9 +6,11 @@ Skip both phases in report-only mode.
 
 - Create the branch `qa-audit/run-<N>` from the audited build. Never commit to the default branch. Never push or open a PR unless the user asks.
 - Fix order: `confirmed` S1 → S2 → S3 → S4, then `flaky` findings whose root cause is clear. Fix `needs_validation` and `rejected` findings never.
+- A leaked secret needs two things: the code fix, and a note telling the owner to rotate the key. QA never rotates keys or touches provider dashboards.
+- Design and UX fixes use the design tokens and existing components. They do not hand-tune values.
 - Fixes that touch the same files run **one after another**. Fixes in separate areas may run in parallel, each in its own git worktree, merged in order afterwards.
 
-## 5.2 Fixer sub-agent (one per finding)
+## 5.2 Fixer sub-agent (one per finding, `fixer-qa-<id>`, never the finding's reproducer)
 
 Brief:
 
@@ -21,14 +23,23 @@ You are fixing QA-<id>. You have its finding record and repo access.
    - UI journey, timing or browser-specific → a Playwright e2e test (role-based
      locators, web-first assertions, no fixed sleeps, unique test data,
      shared auth setup)
+   - design → a component or visual test pinned to the token or state that was
+     wrong (a Storybook or Playwright screenshot of that component, or an
+     assertion on computed styles)
+   - ux → an e2e or component test that asserts the convention (label, role,
+     variant, focus target)
+   - code-quality → a unit test for the behaviour, or the project's own gate
+     (lint rule, tsc) failing before and passing after
+   - passive security → a test that fails while the issue exists (no secret
+     patterns in the build output, cookie flags set, header present)
    Follow the project's existing test conventions and file locations.
 2. Run it. It MUST FAIL, and fail for the reason the finding describes. A
    setup or import error does not count. Save the failing output to
-   evidence/QA-<id>-test-before.txt.
+   agents/<agent-id>/evidence/QA-<id>-test-before.txt.
 3. Make the smallest change that fixes the ROOT CAUSE. No refactors, renames,
    formatting changes or "while I'm here" fixes. If the root cause is bigger than
    this finding, fix the finding minimally and describe the larger issue in notes.
-4. Run the regression test: it must pass. Save evidence/QA-<id>-test-after.txt.
+4. Run the regression test: it must pass. Save agents/<agent-id>/evidence/QA-<id>-test-after.txt.
 5. Run the related test files, then the full suite. The result must be no worse
    than baseline-tests.json: no new failures, no new skips.
 6. Commit the fix together with its test: "fix(QA-<id>): <title>".
@@ -39,7 +50,7 @@ disable the feature; edit migrations already applied to shared environments.
 If you cannot fix it within these rules, stop and explain why.
 ```
 
-## 5.3 Independent fix verifier (a new agent, never the fixer)
+## 5.3 Independent fix verifier (`verifier-qa-<id>`, a new agent, never the fixer)
 
 Brief:
 
@@ -74,12 +85,18 @@ Verdict: fixed | not_fixed | regressed, with reasons and evidence.
   "test_file": "tests/e2e/checkout-double-submit.spec.ts",
   "test_failed_before": true,
   "test_passes_after": true,
+  "suite_no_worse_than_baseline": true,
   "verified_by_independent_agent": true,
+  "fixer": "fixer-qa-001",
+  "verifier": "verifier-qa-001",
   "rounds": 1,
+  "evidence": ["evidence/QA-001-test-before.txt", "evidence/QA-001-test-after.txt"],
   "notes": ""
 }
 ```
 
+- Promote the fixer's and verifier's evidence into `evidence/` before writing the record.
+- `not_fixed`, `regressed` and `needs_human` need `notes` on what was tried.
 - Re-run `validate-findings.cjs` after every fix record.
 - Sibling candidates found by verifiers go through Phase 3 like any other candidate.
 
@@ -91,7 +108,8 @@ After all fixes are done:
 2. Re-run every **P0 journey** on Chromium (desktop) and WebKit (mobile viewport).
 3. Re-test every ledger unit whose `source_files` overlap with the changed files: `git diff --name-only <audited-sha> HEAD`.
 4. Check the console and network on the P0 pages.
+5. Re-run the project's lint, typecheck and build. They must be no worse than at the baseline.
 
 Any new failure becomes a candidate and goes back through Phase 3 (and Phase 5 if it is confirmed). If the sweep finds a regression caused by one of the fixes, mark that fix `regressed` and handle it per 5.4.
 
-Record `finished_at` in `run.json` once the sweep is clean, or when you stop.
+Once the sweep is clean, or when you stop, record `finished_at` and `run_status` (`complete`, or `incomplete` with `incomplete_reason`) in `run.json`.

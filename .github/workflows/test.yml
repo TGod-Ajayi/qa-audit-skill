@@ -1,20 +1,32 @@
 name: test
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        node: [18, 20, 22]
+        os: [ubuntu-latest]
+        node: [18, 20, 22, 24]
+        include:
+          - os: windows-latest
+            node: 22
+          - os: macos-latest
+            node: 22
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
       - run: npm test
       - name: Validate example run
+        run: npm run validate:example
+      - name: Example reports match the generator
+        shell: bash
         run: |
-          node skills/qa-audit/scripts/validate-coverage-ledger.cjs examples/sample-run/coverage-ledger.json
-          node skills/qa-audit/scripts/validate-findings.cjs examples/sample-run/findings.json --ledger examples/sample-run/coverage-ledger.json
-          node skills/qa-audit/scripts/generate-report.cjs examples/sample-run
+          npm run example
           git diff --exit-code examples/sample-run

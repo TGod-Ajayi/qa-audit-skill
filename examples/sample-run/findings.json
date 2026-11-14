@@ -3,7 +3,7 @@
   "build": "a1b2c3d",
   "findings": [
     {
-      "id": "QA-001", "unit": "U-002", "title": "Double-clicking Pay creates two orders and two charges",
+      "id": "QA-001", "unit": "U-002", "check_class": "timing", "title": "Double-clicking Pay creates two orders and two charges",
       "verdict": "confirmed", "severity": "S1",
       "impact": "Customers are charged twice for one purchase",
       "likelihood": "Common on slow connections where the first click seems to do nothing",
@@ -14,15 +14,17 @@
       "environment": {"url": "http://localhost:3000/checkout", "browser": "chromium", "viewport": "1440x900", "build": "a1b2c3d"},
       "evidence": ["evidence/QA-001-network.har", "evidence/QA-001-orders.png"],
       "root_cause_hypothesis": {"location": "src/routes/checkout.tsx:88", "reasoning": "Pay button not disabled while request pending; API has no idempotency key"},
-      "repro_rate": "3/3",
+      "repro_rate": "3/3", "found_by": "tester-b02", "reproduced_by": "reproducer-01",
       "fix": {
         "verdict": "fixed", "commit": "f00dbab", "test_file": "tests/e2e/checkout-double-submit.spec.ts",
-        "test_failed_before": true, "test_passes_after": true, "verified_by_independent_agent": true, "rounds": 1,
+        "test_failed_before": true, "test_passes_after": true, "suite_no_worse_than_baseline": true,
+        "verified_by_independent_agent": true, "fixer": "fixer-qa-001", "verifier": "verifier-qa-001", "rounds": 1,
+        "evidence": ["evidence/QA-001-test-before.txt", "evidence/QA-001-test-after.txt"],
         "notes": "Disabled button while pending and added idempotency key on POST /api/orders"
       }
     },
     {
-      "id": "QA-002", "unit": "U-001", "title": "Sign-up rejects names with apostrophes or diacritics",
+      "id": "QA-002", "unit": "U-001", "check_class": "input", "title": "Sign-up rejects names with apostrophes or diacritics",
       "verdict": "confirmed", "severity": "S2",
       "impact": "Users with common Nigerian and Irish names cannot sign up with their real name",
       "likelihood": "Frequent for the target audience",
@@ -33,20 +35,20 @@
       "environment": {"url": "http://localhost:3000/signup", "browser": "chromium", "viewport": "1440x900", "build": "a1b2c3d"},
       "evidence": ["evidence/QA-002-error.png"],
       "root_cause_hypothesis": {"location": "src/lib/validation.ts:12", "reasoning": "Name regex is /^[A-Za-z ]+$/"},
-      "repro_rate": "3/3",
+      "repro_rate": "3/3", "found_by": "tester-b01", "reproduced_by": "reproducer-02",
       "fix": null
     },
     {
-      "id": "QA-003", "unit": "U-003", "title": "Product grid overflows horizontally at 375px",
+      "id": "QA-003", "unit": "U-003", "check_class": "responsive", "title": "Product grid overflows horizontally at 375px",
       "verdict": "flaky", "severity": "S3",
       "impact": "Sideways scrolling on phones; layout looks broken",
       "likelihood": "Only when a product title has a very long unbroken word",
       "expected": "No horizontal scroll at 375px",
-      "expected_source": "Design system: responsive breakpoints",
+      "expected_source": "docs/design-system.md#breakpoints",
       "observed": "Page width 412px at 375px viewport",
       "minimal_repro": ["Open /products at 375x812", "Scroll to a product with a long title"],
       "evidence": ["evidence/QA-003-overflow.png"],
-      "repro_rate": "4/10",
+      "repro_rate": "4/10", "found_by": "tester-b03", "reproduced_by": "reproducer-03",
       "fix": null
     },
     {
@@ -59,9 +61,77 @@
       "id": "QA-005", "unit": "U-003", "title": "Filter chips misaligned",
       "verdict": "rejected", "severity": null,
       "rejection_reason": "Matches the design file; tester expectation had no source"
+    },
+    {
+      "id": "QA-006", "unit": "U-002", "check_class": "design", "title": "Checkout summary uses the wrong type scale and omits the delivery-fee row",
+      "verdict": "confirmed", "severity": "S3",
+      "impact": "Order summary is harder to scan and hides how the total is made up",
+      "likelihood": "Every checkout",
+      "expected": "Summary uses text/body-md and shows Subtotal, Delivery, Discount and Total rows",
+      "expected_source": "Figma: Demo Shop / Checkout v3, frame 'Order summary'",
+      "observed": "Summary uses 12px text and has no Delivery row; delivery is folded into Total",
+      "minimal_repro": ["Add any item to cart", "Open /checkout at 1440x900", "Compare the summary card with the Figma frame"],
+      "evidence": ["evidence/QA-006-figma-vs-live.png"],
+      "repro_rate": "3/3", "found_by": "tester-b02", "reproduced_by": "reproducer-04",
+      "fix": null
+    },
+    {
+      "id": "QA-007", "unit": "U-002", "check_class": "ux", "title": "'Remove' on checkout is styled as a primary button, unlike the cart page",
+      "verdict": "confirmed", "severity": "S3",
+      "impact": "Users can remove an item when they mean to continue; destructive action looks like the main action",
+      "likelihood": "Likely on mobile where Remove sits above Pay",
+      "expected": "Destructive actions use the danger-outline style, as on /cart",
+      "expected_source": "Internal consistency: /cart Remove button (src/routes/cart.tsx:54); docs/design-system.md#buttons",
+      "observed": "Checkout renders Remove with the solid primary style",
+      "minimal_repro": ["Add an item", "Open /cart and note the Remove style", "Open /checkout and compare"],
+      "evidence": ["evidence/QA-007-cart-vs-checkout.png"],
+      "repro_rate": "3/3", "found_by": "tester-b02", "reproduced_by": "reproducer-05",
+      "fix": null
+    },
+    {
+      "id": "QA-008", "unit": "U-005", "check_class": "code-quality", "title": "Money helpers add naira amounts as floats",
+      "verdict": "confirmed", "severity": "S2",
+      "impact": "Totals with kobo values are off by ₦0.01 in some baskets",
+      "likelihood": "Any basket mixing items priced with kobo",
+      "expected": "All money maths uses integer kobo",
+      "expected_source": "CONTRIBUTING.md#money: 'store and compute money in minor units'",
+      "observed": "addPrices(1999.99, 0.01) returns 2000.0000000000002, shown as ₦2,000.01 after rounding up",
+      "minimal_repro": ["Run node -e \"console.log(require('./src/lib/money').addPrices(1999.99, 0.01))\""],
+      "evidence": ["evidence/QA-008-unit-output.txt"],
+      "root_cause_hypothesis": {"location": "src/lib/money.ts:8", "reasoning": "Adds decimal naira then rounds with Math.ceil"},
+      "repro_rate": "3/3", "found_by": "tester-b05", "reproduced_by": "reproducer-06",
+      "fix": null
+    },
+    {
+      "id": "QA-009", "unit": "U-005", "check_class": "security", "title": "Paystack secret key is shipped in the client bundle",
+      "verdict": "confirmed", "severity": "S1",
+      "impact": "Anyone can read the secret key and act on the merchant account",
+      "likelihood": "Certain; the bundle is public",
+      "expected": "Only the public key reaches the browser",
+      "expected_source": "Paystack docs: 'never expose your secret key on the client'",
+      "observed": "dist/assets/index-*.js contains a string starting sk_t…; value redacted in evidence",
+      "minimal_repro": ["npm run build", "Search dist/assets for the PAYSTACK_SECRET prefix"],
+      "evidence": ["evidence/QA-009-bundle-scan-redacted.txt"],
+      "root_cause_hypothesis": {"location": "src/lib/http.ts:3", "reasoning": "Reads VITE_PAYSTACK_SECRET, which Vite inlines into the client"},
+      "repro_rate": "3/3", "found_by": "tester-b05", "reproduced_by": "reproducer-07",
+      "fix": {
+        "verdict": "fixed", "commit": "be7c0de", "test_file": "tests/build/no-secrets-in-bundle.test.ts",
+        "test_failed_before": true, "test_passes_after": true, "suite_no_worse_than_baseline": true,
+        "verified_by_independent_agent": true, "fixer": "fixer-qa-009", "verifier": "verifier-qa-009", "rounds": 1,
+        "evidence": ["evidence/QA-009-test-before.txt", "evidence/QA-009-test-after.txt"],
+        "notes": "Moved the charge call server-side. The exposed test key must still be rotated by the owner."
+      }
+    },
+    {
+      "id": "QA-010", "unit": "U-002", "title": "Order detail API may return another customer's order by id",
+      "verdict": "needs_validation", "severity": null, "security_referral": true,
+      "observed": "GET /api/orders/:id handler has no owner check in source; not probed",
+      "blocking_fact": "Needs security review; not probed by QA",
+      "fix": null
     }
   ],
   "suggestions": [
-    {"unit": "U-002", "text": "Show the delivery fee before the payment step"}
+    {"unit": "U-002", "kind": "ux", "text": "Show the delivery fee before the payment step"},
+    {"unit": "U-005", "kind": "code-quality", "text": "src/lib/http.ts mixes fetch and axios; pick one client"}
   ]
 }
