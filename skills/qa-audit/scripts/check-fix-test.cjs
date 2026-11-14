@@ -91,8 +91,9 @@ function changedPaths(repo, commit) {
 
 function check(o) {
   const repo = path.resolve(o.repo);
-  const top = git(repo, ['rev-parse', '--show-toplevel']).stdout.trim();
-  if (fs.realpathSync(top) !== fs.realpathSync(repo)) throw new UsageError('--repo must be the repository root');
+  // An empty prefix means repo is the top level. Asking git avoids comparing paths,
+  // which differ in form on Windows (8.3 short names, slashes).
+  if (git(repo, ['rev-parse', '--show-prefix']).stdout.trim() !== '') throw new UsageError('--repo must be the repository root');
   if (git(repo, ['status', '--porcelain', '--untracked-files=no']).stdout.trim()) {
     throw new UsageError('the working tree has uncommitted changes to tracked files; commit or stash them first');
   }
