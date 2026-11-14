@@ -4,7 +4,7 @@
   "private": true,
   "description": "Coding-agent skill for evidence-first QA: find, reproduce, test-first fix and verify bugs in web apps, including design, UX, code quality and passive security hygiene.",
   "license": "MIT",
-  "author": "Thankgod Olusegun Ajayi (https://tgodajayi.com)",
+  "author": "Thankgod Ajayi (https://tgodajayi.com)",
   "repository": {
     "type": "git",
     "url": "https://github.com/TGod-Ajayi/qa-audit-skill.git"

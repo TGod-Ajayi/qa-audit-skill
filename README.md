@@ -161,4 +161,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). New domain checklists in `checks/` (mobi
 
 ## License
 
-MIT © Thankgod Olusegun Ajayi ([@TGod-Ajayi](https://github.com/TGod-Ajayi)). See [LICENSE](LICENSE).
+MIT © Thankgod Ajayi ([@TGod-Ajayi](https://github.com/TGod-Ajayi)). See [LICENSE](LICENSE).
