@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.0 — 2026-11-14
+
+### Added
+
+- `fix.repro_after`, required for `fixed`: the verifier's re-runs of the original minimal repro on the fixed build, each with kind (`browser` or `command`), browser and viewport or command, commit, agent, attempts, result, what was observed and evidence.
+- Validator rules for it:
+  - every re-run was made by the verifier and passed
+  - browser findings include the original browser and viewport, with the same number of attempts the fix check needs (3 for confirmed, more for flaky), plus one other browser
+  - the evidence is listed in the fix evidence
+- `stamp-verdict.cjs stamp` refuses a re-run whose commit doesn't contain the fix or isn't in HEAD.
+- `FINDINGS-DETAIL.md` lists each re-run.
+- Tests (115 in total).
+
 ## 0.5.0 — 2026-11-14
 
 ### Added

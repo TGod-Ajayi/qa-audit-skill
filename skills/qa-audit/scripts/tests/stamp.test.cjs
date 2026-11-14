@@ -37,6 +37,8 @@ function setup(mutate) {
     for (const doc of [d.run, d.ledger, d.findings]) doc.build = build.slice(0, 7);
     byId(d.findings, 'QA-001').fix.commit = fix1.slice(0, 7);
     byId(d.findings, 'QA-009').fix.commit = fix9.slice(0, 7);
+    // The verifier re-ran both repros on the branch head, which has both fixes.
+    for (const id of ['QA-001', 'QA-009']) for (const r of byId(d.findings, id).fix.repro_after) r.commit = fix9.slice(0, 7);
     if (mutate) mutate(d);
   });
   for (const [id, sha] of [['QA-001', fix1], ['QA-009', fix9]]) {
@@ -176,4 +178,20 @@ test('the sample run carries a valid, current stamp', () => {
   assert.deepEqual(validateSchema(st, loadSchema('verdict.schema.json')), []);
   const { recordDriftReasons } = require('../lib/stamp.cjs');
   assert.deepEqual(recordDriftReasons(st, SAMPLE, computeVerdict(load('findings.json'), load('coverage-ledger.json'), load('run.json')).verdict), []);
+});
+
+test('refuses a repro re-run made on code without the fix, or outside HEAD', () => {
+  const before = setup((d) => { byId(d.findings, 'QA-009').fix.repro_after[0].commit = d.run.build; });
+  assert.match(stamp(before).stderr, /QA-009: repro_after\[0\] commit [0-9a-f]{7} does not contain the fix/);
+
+  const s = setup();
+  git(s.repo, 'checkout', '-q', '-b', 'side');
+  const side = commit(s.repo, 'side.js', 'x\n', 'side branch');
+  git(s.repo, 'checkout', '-q', 'qa-audit/run-1');
+  const runDir = s.run;
+  const p = path.join(runDir, 'findings.json');
+  const doc = JSON.parse(fs.readFileSync(p, 'utf8'));
+  byId(doc, 'QA-001').fix.repro_after[0].commit = side.slice(0, 7);
+  fs.writeFileSync(p, JSON.stringify(doc));
+  assert.match(stamp(s).stderr, /QA-001: repro_after\[0\] commit [0-9a-f]{7} is not in HEAD/);
 });

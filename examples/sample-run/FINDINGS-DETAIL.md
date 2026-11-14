@@ -27,7 +27,9 @@ _Source: docs/spec.md#checkout: 'each checkout creates exactly one order'_
 
 **Fix:** fixed in `f00dbab`, test `tests/e2e/checkout-double-submit.spec.ts`, 1 round(s); fixed by fixer-qa-001, verified by verifier-qa-001
   Fails without the fix with `one order per Pay click`; passes with it on every repeated run (checked by `evidence/QA-001-revert-check.json`)
-  Fix evidence: `evidence/QA-001-test-before.txt`, `evidence/QA-001-test-after.txt`, `evidence/QA-001-revert-check.json`
+  Original repro re-run by verifier-qa-001 on `be7c0de`: chromium 1440x900, 3 attempt(s), pass: Double-clicking Pay sends one POST /api/orders and creates one order and one charge
+  Original repro re-run by verifier-qa-001 on `be7c0de`: webkit 390x844, 3 attempt(s), pass: Same on mobile WebKit; Pay is disabled while the order is pending
+  Fix evidence: `evidence/QA-001-test-before.txt`, `evidence/QA-001-test-after.txt`, `evidence/QA-001-revert-check.json`, `evidence/QA-001-repro-after-chromium.zip`, `evidence/QA-001-repro-after-webkit.zip`
   Disabled button while pending and added idempotency key on POST /api/orders
 
 ## QA-009 [S1] Paystack secret key is shipped in the client bundle
@@ -55,7 +57,8 @@ _Source: Paystack docs: 'never expose your secret key on the client'_
 
 **Fix:** fixed in `be7c0de`, test `tests/build/no-secrets-in-bundle.test.ts`, 1 round(s); fixed by fixer-qa-009, verified by verifier-qa-009
   Fails without the fix with `bundle contains secret key prefix sk_t`; passes with it on every repeated run (checked by `evidence/QA-009-revert-check.json`)
-  Fix evidence: `evidence/QA-009-test-before.txt`, `evidence/QA-009-test-after.txt`, `evidence/QA-009-revert-check.json`
+  Original repro re-run by verifier-qa-009 on `be7c0de`: `npm run build && node scripts/scan-bundle-for-secrets.js dist/assets`, 3 attempt(s), pass: No secret key prefix in dist/assets; only the public key is present
+  Fix evidence: `evidence/QA-009-test-before.txt`, `evidence/QA-009-test-after.txt`, `evidence/QA-009-revert-check.json`, `evidence/QA-009-repro-after.txt`
   Moved the charge call server-side. The exposed test key must still be rotated by the owner.
 
 ## QA-002 [S2] Sign-up rejects names with apostrophes or diacritics

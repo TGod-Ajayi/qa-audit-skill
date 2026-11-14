@@ -148,6 +148,10 @@ A bug that shows up once in a while can't be `confirmed` (that needs 3/3 from a 
 
 Fixing one is harder to prove: if a bug shows up 4 times in 10, an unfixed build still passes a single run 60% of the time. So the validator sets `--repeat` from the bug's own rate: enough runs that an unfixed bug would slip past all of them at most 5% of the time. That's 6 runs for 4/10 and 29 for 1/10. Every run with the fix must pass, and the test must catch the bug at least once without it. For a confirmed bug, the test must catch it on every run without the fix; if it doesn't, the test or the verdict is wrong.
 
+### Does the verifier really re-run the original repro?
+
+It has to prove it. Every `fixed` record carries `repro_after`: one entry per re-run of the original minimal repro on the fixed build, made by the verifier. Each entry records the browser and viewport (or the command, for static findings), the commit it ran on, the number of attempts, what was observed and a trace or screenshot. The validator requires a re-run in the original browser and viewport, as many attempts as the fix check needed, and one more browser. The verdict stamp then checks that each re-run's commit contains the fix and is part of the stamped build. The verifier also sees the diff, not just test output, so it can tell a real fix from one that only silences the test.
+
 ### Can "Ship" go stale?
 
 Not quietly. Fixes land after the audited commit, and someone (or another agent) can always commit after the audit. So the verdict is stamped:

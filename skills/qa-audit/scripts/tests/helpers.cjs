@@ -21,7 +21,11 @@ function fixedProof(n = 1) {
     revert_check: `evidence/t${n}-revert-check.json`,
     test_passes_after: true, suite_no_worse_than_baseline: true,
     verified_by_independent_agent: true, fixer: `fixer-${n}`, verifier: `verifier-${n}`, rounds: 1,
-    evidence: [`evidence/t${n}-before.txt`, `evidence/t${n}-after.txt`, `evidence/t${n}-revert-check.json`],
+    evidence: [`evidence/t${n}-before.txt`, `evidence/t${n}-after.txt`, `evidence/t${n}-revert-check.json`, `evidence/t${n}-repro-after.txt`],
+    repro_after: [{
+      kind: 'command', command: `npm test -- t${n}`, commit: `abc${n}def`, by: `verifier-${n}`, attempts: 3,
+      result: 'pass', observed: 'expected behaviour', evidence: `evidence/t${n}-repro-after.txt`,
+    }],
   };
 }
 

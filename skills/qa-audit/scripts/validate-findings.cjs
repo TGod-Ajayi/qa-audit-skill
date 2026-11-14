@@ -74,6 +74,7 @@ function fixErrors(f, w, err) {
     if (!isStr(x.revert_check)) err(fw, 'fixed requires revert_check: the check-fix-test.cjs result under evidence/');
     else if (!(x.evidence || []).includes(x.revert_check)) err(fw, 'revert_check must also be listed in fix evidence');
   }
+  if (x.verdict === 'fixed') reproAfterErrors(f, fw, err);
   if (isStr(x.revert_check) && !isEvidencePath(x.revert_check)) err(fw, 'revert_check must be a safe relative path under evidence/');
   if (isStr(x.fixer) && x.fixer === x.verifier) err(fw, 'verifier must be a different agent from fixer');
   if (isStr(x.fixer) && x.fixer === f.reproduced_by) err(fw, 'fixer must not be the agent that reproduced the finding');
@@ -82,6 +83,39 @@ function fixErrors(f, w, err) {
     err(fw, `${x.verdict} requires notes on what was tried`);
   }
   (x.evidence || []).forEach((e, k) => { if (!isEvidencePath(e)) err(`${fw}.evidence[${k}]`, 'must be a safe relative path under evidence/'); });
+}
+
+// The verifier's re-run of the ORIGINAL minimal repro on the fixed build. Browser
+// findings need the original browser (and viewport) plus one other browser; static
+// findings re-run their command. The original-environment run repeats as often as
+// the fix check, so a flaky bug can't pass on one lucky attempt.
+function reproAfterErrors(f, fw, err) {
+  const x = f.fix;
+  const ra = x.repro_after;
+  const w = `${fw}.repro_after`;
+  if (!nonEmptyArr(ra)) { err(fw, 'fixed requires repro_after: the verifier re-running the original repro on the fixed build'); return; }
+  const need = requiredRepeat(f);
+  ra.forEach((r, i) => {
+    const rw = `${w}[${i}]`;
+    if (isStr(x.verifier) && r.by !== x.verifier) err(rw, `must be run by the verifier (${x.verifier}), not ${safeQuote(r.by)}`);
+    if (r.result !== 'pass') err(rw, `result is ${r.result}; a fix that fails its original repro is not fixed`);
+    if (!isEvidencePath(r.evidence)) err(rw, 'evidence must be a safe relative path under evidence/');
+    else if (!(x.evidence || []).includes(r.evidence)) err(rw, 'evidence must also be listed in fix evidence');
+    if (r.kind === 'browser' && !isStr(r.browser)) err(rw, 'a browser re-run needs browser');
+    if (r.kind === 'browser' && hasOwn(r, 'command')) err(rw, 'a browser re-run has no command');
+    if (r.kind === 'command' && !isStr(r.command)) err(rw, 'a command re-run needs command');
+    if (r.kind === 'command' && (hasOwn(r, 'browser') || hasOwn(r, 'viewport'))) err(rw, 'a command re-run has no browser or viewport');
+  });
+  const env = f.environment || {};
+  if (isStr(env.browser)) {
+    const runs = ra.filter((r) => r.kind === 'browser');
+    const original = runs.filter((r) => r.browser === env.browser && (!env.viewport || r.viewport === env.viewport));
+    if (!original.length) err(w, `must include a re-run in the original environment (${env.browser}${env.viewport ? ` ${env.viewport}` : ''})`);
+    else if (!original.some((r) => r.attempts >= need)) err(w, `the original-environment re-run needs at least ${need} attempts for a ${f.verdict} finding`);
+    if (new Set(runs.map((r) => r.browser)).size < 2) err(w, 'must include a re-run on at least one other browser');
+  } else if (!ra.some((r) => r.attempts >= need)) {
+    err(w, `needs a re-run with at least ${need} attempts for a ${f.verdict} finding`);
+  }
 }
 
 function semanticErrors(doc, ledger, run) {

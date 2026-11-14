@@ -6,7 +6,8 @@
 // stamp <run-dir> --repo <dir> [--accept <sha>]...
 //   Validates the records, then requires: a finished run; a repo with no
 //   uncommitted or untracked changes; HEAD descending from the audited build and
-//   containing every fixed finding's commit; and every commit between the audited
+//   containing every fixed finding's commit; each verifier repro re-run made on a
+//   commit that contains its fix and is in HEAD; and every commit between the audited
 //   build and HEAD being a recorded fix commit, or named with --accept (recorded
 //   with its subject and shown in the report). Writes <run-dir>/verdict.json with the
 //   verdict, HEAD, its tree hash and sha256 of each record.
@@ -96,7 +97,18 @@ function stamp(o) {
     const sha = resolve(repo, f.fix.commit);
     if (!sha) reasons.push(`${f.id}: fix commit ${f.fix.commit} is not in this repository`);
     else if (!isAncestor(repo, sha, st.head)) reasons.push(`${f.id}: fix commit ${f.fix.commit} is not in HEAD`);
-    else if (!fixCommits.includes(sha)) fixCommits.push(sha);
+    else {
+      if (!fixCommits.includes(sha)) fixCommits.push(sha);
+      // The verifier's repro re-run must have run on code that contains this fix
+      // and that is part of what is being stamped.
+      for (const [i, r] of (f.fix.repro_after || []).entries()) {
+        const at = resolve(repo, r.commit);
+        const where = `${f.id}: repro_after[${i}] commit ${r.commit}`;
+        if (!at) reasons.push(`${where} is not in this repository`);
+        else if (!isAncestor(repo, sha, at)) reasons.push(`${where} does not contain the fix, so it did not test the fixed build`);
+        else if (!isAncestor(repo, at, st.head)) reasons.push(`${where} is not in HEAD`);
+      }
+    }
   }
 
   const accepted = [];

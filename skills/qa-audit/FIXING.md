@@ -87,7 +87,11 @@ the repo. You did not write this fix.
    check fails, the verdict is not_fixed. Also read the test: does it test
    behaviour, not the implementation?
 3. Re-run the ORIGINAL minimal repro in a real browser on the fixed build, in the
-   original environment (browser and viewport). Then run it on one other browser.
+   original environment (browser and viewport), as many times as the fix check
+   ran (3 for confirmed, more for flaky). Then run it on one other browser. Save a
+   trace or screenshot per run and record each run in fix.repro_after with the
+   commit you ran on (git rev-parse HEAD). Static findings (code-quality, passive
+   security) re-run their command instead, with kind "command".
 4. Hunt for siblings: search for the same pattern elsewhere (other forms, endpoints
    or components built the same way). Report each match as a new candidate. Do
    not fix it.
@@ -111,19 +115,33 @@ Verdict: fixed | not_fixed | regressed, with reasons and evidence.
   "fails_without_fix": true,
   "failure_signature": "one order per Pay click",
   "revert_check": "evidence/QA-001-revert-check.json",
+  "repro_after": [
+    {"kind": "browser", "browser": "chromium", "viewport": "1440x900", "commit": "<sha>", "by": "verifier-qa-001",
+     "attempts": 3, "result": "pass", "observed": "One POST /api/orders, one order, one charge",
+     "evidence": "evidence/QA-001-repro-after-chromium.zip"},
+    {"kind": "browser", "browser": "webkit", "viewport": "390x844", "commit": "<sha>", "by": "verifier-qa-001",
+     "attempts": 3, "result": "pass", "observed": "Same on mobile WebKit",
+     "evidence": "evidence/QA-001-repro-after-webkit.zip"}
+  ],
   "test_passes_after": true,
   "suite_no_worse_than_baseline": true,
   "verified_by_independent_agent": true,
   "fixer": "fixer-qa-001",
   "verifier": "verifier-qa-001",
   "rounds": 1,
-  "evidence": ["evidence/QA-001-test-before.txt", "evidence/QA-001-test-after.txt", "evidence/QA-001-revert-check.json"],
+  "evidence": ["evidence/QA-001-test-before.txt", "evidence/QA-001-test-after.txt", "evidence/QA-001-revert-check.json",
+               "evidence/QA-001-repro-after-chromium.zip", "evidence/QA-001-repro-after-webkit.zip"],
   "notes": ""
 }
 ```
 
 - Promote the fixer's and verifier's evidence into `evidence/` before writing the record.
 - `fixed` needs a passing revert check. `validate-findings.cjs --run-dir` and `generate-report.cjs` read `revert_check` back and require it to match the fix's commit, test file and `failure_signature`. They also require enough repeats for the finding (3 for confirmed; for flaky, enough that an unfixed bug would show up with at least 95% probability), every with-fix run green, and, for a confirmed finding, the test catching the bug on every without-fix run. A signature that names a timeout, selector, missing module or "no tests found" is rejected.
+- `fixed` needs `repro_after`, and the validator checks it:
+  - every re-run was done by the verifier and passed
+  - browser findings include the original browser and viewport, with as many attempts as the fix check needed, plus one other browser
+  - each re-run's evidence is listed
+  - `stamp-verdict.cjs` also requires each re-run's commit to contain the fix and to be in the stamped HEAD
 - `not_fixed`, `regressed` and `needs_human` need `notes` on what was tried.
 - Re-run `validate-findings.cjs` after every fix record.
 - Sibling candidates found by verifiers go through Phase 3 like any other candidate.

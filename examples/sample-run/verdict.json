@@ -18,7 +18,7 @@
   "records": {
     "run.json": "18f65a8d88a381b945021cf75a7394ded8c4274a0769abc426ef8e688b0e744f",
     "coverage-ledger.json": "3277761a76528b3839c8fdeac72cfac9e8ee6e20e9140a87fff7403e869262f7",
-    "findings.json": "26678835d29c6dea39e5581a059435bcce5fd6c5395bf8ce04b4251707322b5c"
+    "findings.json": "1de1b6432370aab859d9e3286cc7622251e6aeb52a177cdd91d3a03d52d41dc6"
   },
   "stamped_at": "2026-11-14T16:05:00.000Z"
 }
