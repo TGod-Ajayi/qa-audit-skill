@@ -54,10 +54,11 @@ Multiple runs against the same repo are additive. The skill reads earlier ledger
 | `checks/email-and-notifications.md` | Email, SMS, push and in-app notifications |
 | `checks/code-quality.md` | Project quality gates, error handling, duplication, tests, dependencies |
 | `checks/security-hygiene.md` | Passive security checks; everything else is a referral |
-| `schemas/*.schema.json` | JSON Schemas for `run.json`, `coverage-ledger.json` and `findings.json` |
+| `schemas/*.schema.json` | JSON Schemas for `run.json`, `coverage-ledger.json`, `findings.json` and revert-check results |
 | `scripts/validate-run.cjs` | Validator for `run.json` |
 | `scripts/validate-coverage-ledger.cjs` | Validator for the ledger |
 | `scripts/validate-findings.cjs` | Validator for findings, with ledger and run cross-checks |
+| `scripts/check-fix-test.cjs` | Proves a regression test fails for the right reason: removes only the product fix and requires the bug's assertion |
 | `scripts/generate-report.cjs` | Report generator; refuses to run on invalid records |
 | `scripts/tests/` | `node:test` suites for the validators, the generator, the CLIs and doc consistency |
 | `examples/sample-run/` | A complete example run with generated reports |
@@ -111,6 +112,7 @@ The scripts have **no dependencies**; you only need Node.js 18 or later. The val
 - the evidence bar for each verdict
 - a finder never reproduces its own bug, and a fixer never verifies its own fix
 - fix proof: the test failed before, passes after, the suite is no worse than baseline, and an independent verifier signed off
+- the test fails **for the right reason**: a machine-checked revert check, described below
 - evidenced coverage for every unit marked `covered`
 - safe relative evidence paths
 - consistency between the run, ledger and findings records
@@ -120,10 +122,24 @@ They read input defensively: regular files only, no symlinks, size and depth lim
 ```bash
 node skills/qa-audit/scripts/validate-run.cjs <run>/run.json
 node skills/qa-audit/scripts/validate-coverage-ledger.cjs <run>/coverage-ledger.json
-node skills/qa-audit/scripts/validate-findings.cjs <run>/findings.json --ledger <run>/coverage-ledger.json --run <run>/run.json
+node skills/qa-audit/scripts/validate-findings.cjs <run>/findings.json --ledger <run>/coverage-ledger.json --run <run>/run.json --run-dir <run>
 node skills/qa-audit/scripts/generate-report.cjs <run>
 npm test
 ```
+
+### Does the test fail for the right reason?
+
+Agents happily write a test that dies on a bad selector, then "fix" it by adding that selector. To stop that, the verifier runs:
+
+```bash
+node skills/qa-audit/scripts/check-fix-test.cjs --repo . --commit <fix sha> \
+  --test-file tests/e2e/checkout-double-submit.spec.ts \
+  --expect "one order per Pay click" \
+  --out <run>/agents/verifier-qa-001/evidence/QA-001-revert-check.json \
+  -- npx playwright test tests/e2e/checkout-double-submit.spec.ts
+```
+
+It reverse-applies only the fix's **non-test** changes and runs the test. The test must fail, and its output must contain the expected assertion message, which names the bug. Then it restores the fix and the test must pass. A timeout on a missing selector, a missing module or "no tests found" never prints that message, so the check fails. A signature that is itself a timeout or selector error is rejected outright. The JSON result is read back by `validate-findings.cjs --run-dir` and `generate-report.cjs`, so a fix can't be marked `fixed` without it.
 
 See [`examples/sample-run/REPORT.md`](examples/sample-run/REPORT.md) for what a finished run looks like.
 
@@ -141,7 +157,7 @@ See [`examples/sample-run/REPORT.md`](examples/sample-run/REPORT.md) for what a 
 ## Design principles
 
 - **Nothing is a bug until a different agent reproduces it.** The tester never confirms its own candidate.
-- **Nothing is fixed until a failing test passes.** A different agent then re-runs the original repro and hunts for the same bug in sibling code.
+- **Nothing is fixed until a failing test passes, and the failure is the bug.** A script removes the product fix and checks the test fails with the bug's own assertion. A different agent then re-runs the original repro and hunts for the same bug in sibling code.
 - **Opinions aren't bugs.** Every finding cites its expected behaviour: a spec, a Figma frame, a design token, the app's own convention on another screen, WCAG, the project's lint config, or your statement. Taste goes into a separate suggestions list.
 - **Coverage is evidence.** Untested areas are reported as gaps, never counted as passing.
 - **Severity is user impact × likelihood**, not the number of checklist items that failed.

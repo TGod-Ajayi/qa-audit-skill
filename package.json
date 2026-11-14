@@ -1,6 +1,6 @@
 {
   "name": "qa-audit-skill",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Coding-agent skill for evidence-first QA: find, reproduce, test-first fix and verify bugs in web apps, including design, UX, code quality and passive security hygiene.",
   "license": "MIT",
@@ -15,7 +15,7 @@
   "scripts": {
     "test": "node --test skills/qa-audit/scripts/tests/*.test.cjs",
     "example": "node skills/qa-audit/scripts/generate-report.cjs examples/sample-run",
-    "validate:example": "node skills/qa-audit/scripts/validate-run.cjs examples/sample-run/run.json && node skills/qa-audit/scripts/validate-coverage-ledger.cjs examples/sample-run/coverage-ledger.json && node skills/qa-audit/scripts/validate-findings.cjs examples/sample-run/findings.json --ledger examples/sample-run/coverage-ledger.json --run examples/sample-run/run.json"
+    "validate:example": "node skills/qa-audit/scripts/validate-run.cjs examples/sample-run/run.json && node skills/qa-audit/scripts/validate-coverage-ledger.cjs examples/sample-run/coverage-ledger.json && node skills/qa-audit/scripts/validate-findings.cjs examples/sample-run/findings.json --ledger examples/sample-run/coverage-ledger.json --run examples/sample-run/run.json --run-dir examples/sample-run"
   },
   "keywords": [
     "agent-skill",

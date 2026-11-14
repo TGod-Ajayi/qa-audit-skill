@@ -34,15 +34,20 @@ You are fixing QA-<id>. You have its finding record and repo access.
      patterns in the build output, cookie flags set, header present)
    Follow the project's existing test conventions and file locations.
 2. Run it. It MUST FAIL, and fail for the reason the finding describes. A
-   setup or import error does not count. Save the failing output to
-   agents/<agent-id>/evidence/QA-<id>-test-before.txt.
+   setup or import error, a missing module, or a selector or action timeout
+   does not count. Give the assertion a message that names the bug, for example
+   expect(orders, 'one order per Pay click').toHaveLength(1). That message is the
+   finding's failure_signature; record it in your result. Save the failing output
+   to agents/<agent-id>/evidence/QA-<id>-test-before.txt.
 3. Make the smallest change that fixes the ROOT CAUSE. No refactors, renames,
    formatting changes or "while I'm here" fixes. If the root cause is bigger than
    this finding, fix the finding minimally and describe the larger issue in notes.
 4. Run the regression test: it must pass. Save agents/<agent-id>/evidence/QA-<id>-test-after.txt.
 5. Run the related test files, then the full suite. The result must be no worse
    than baseline-tests.json: no new failures, no new skips.
-6. Commit the fix together with its test: "fix(QA-<id>): <title>".
+6. Commit the fix together with its test, in ONE commit: "fix(QA-<id>): <title>".
+   The verifier removes the product-code part of this commit to prove the test
+   catches the bug, so keep unrelated files out of it.
 
 Never: delete, skip, loosen or .only tests; change expected values to match buggy
 behaviour; swallow or hide errors; add sleeps or blind retries to hide a race;
@@ -60,8 +65,22 @@ the repo. You did not write this fix.
 
 1. Read the diff against the root cause. Does it fix the cause, or only hide the
    symptom (catching an error, special-casing the test data, hiding the UI)?
-2. Check the regression test: would it have caught the original bug? Check the
-   test-before evidence. Is it testing behaviour, not the implementation?
+2. Prove the test fails for the right reason. Run, from the skill directory:
+
+     node scripts/check-fix-test.cjs --repo <repo> --commit <fix sha> \
+       --test-file <test file> --expect "<failure_signature>" \
+       --out <run>/agents/<agent-id>/evidence/QA-<id>-revert-check.json \
+       -- <command that runs only that test>
+
+   It reverse-applies only the commit's non-test changes, runs the test and
+   requires a non-zero exit whose output contains the signature; then it
+   restores the fix and requires the test to pass. A test that dies on a bad
+   selector or a setup error does not print the signature and fails the check.
+   Add --keep <path> for test fixtures or snapshots committed with the test.
+   Before running it, read the signature against the finding's observed
+   behaviour: it must name the bug, not a selector, timeout or import. If the
+   check fails, the verdict is not_fixed. Also read the test: does it test
+   behaviour, not the implementation?
 3. Re-run the ORIGINAL minimal repro in a real browser on the fixed build, in the
    original environment (browser and viewport). Then run it on one other browser.
 4. Hunt for siblings: search for the same pattern elsewhere (other forms, endpoints
@@ -84,18 +103,22 @@ Verdict: fixed | not_fixed | regressed, with reasons and evidence.
   "commit": "<sha>",
   "test_file": "tests/e2e/checkout-double-submit.spec.ts",
   "test_failed_before": true,
+  "fails_without_fix": true,
+  "failure_signature": "one order per Pay click",
+  "revert_check": "evidence/QA-001-revert-check.json",
   "test_passes_after": true,
   "suite_no_worse_than_baseline": true,
   "verified_by_independent_agent": true,
   "fixer": "fixer-qa-001",
   "verifier": "verifier-qa-001",
   "rounds": 1,
-  "evidence": ["evidence/QA-001-test-before.txt", "evidence/QA-001-test-after.txt"],
+  "evidence": ["evidence/QA-001-test-before.txt", "evidence/QA-001-test-after.txt", "evidence/QA-001-revert-check.json"],
   "notes": ""
 }
 ```
 
 - Promote the fixer's and verifier's evidence into `evidence/` before writing the record.
+- `fixed` needs a passing revert check. `validate-findings.cjs --run-dir` and `generate-report.cjs` read `revert_check` back and require it to match the fix's commit, test file and `failure_signature`. A signature that names a timeout, selector, missing module or "no tests found" is rejected.
 - `not_fixed`, `regressed` and `needs_human` need `notes` on what was tried.
 - Re-run `validate-findings.cjs` after every fix record.
 - Sibling candidates found by verifiers go through Phase 3 like any other candidate.

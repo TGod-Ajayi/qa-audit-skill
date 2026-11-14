@@ -1,0 +1,37 @@
+{
+  "tool": "qa-audit/check-fix-test",
+  "version": 1,
+  "result": "pass",
+  "commit": "f00dbab222222222222222222222222222222222",
+  "head": "c0ffee5111111111111111111111111111111111",
+  "test_file": "tests/e2e/checkout-double-submit.spec.ts",
+  "expect": "one order per Pay click",
+  "command": [
+    "npx",
+    "playwright",
+    "test",
+    "tests/e2e/checkout-double-submit.spec.ts",
+    "--project=chromium"
+  ],
+  "kept_files": [
+    "tests/e2e/checkout-double-submit.spec.ts"
+  ],
+  "reverted_files": [
+    "src/routes/checkout.tsx",
+    "src/server/orders.ts"
+  ],
+  "without_fix": {
+    "exit_code": 1,
+    "timed_out": false,
+    "matched_expect": true,
+    "output_tail": "Running 1 test using 1 worker\n  1) [chromium] \u203a tests/e2e/checkout-double-submit.spec.ts:12:5 \u203a double-clicking Pay creates one order\n\n    Error: one order per Pay click\n\n    expect(received).toHaveLength(expected)\n\n    Expected length: 1\n    Received length: 2\n\n  1 failed\n"
+  },
+  "with_fix": {
+    "exit_code": 0,
+    "timed_out": false,
+    "output_tail": "Running 1 test using 1 worker\n  \u2713  1 [chromium] \u203a tests/e2e/checkout-double-submit.spec.ts:12:5 \u203a double-clicking Pay creates one order (2.1s)\n\n  1 passed\n"
+  },
+  "reasons": [],
+  "warnings": [],
+  "checked_at": "2026-11-14T15:42:10.000Z"
+}

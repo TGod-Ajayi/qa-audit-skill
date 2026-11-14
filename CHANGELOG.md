@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0 — 2026-11-14
+
+### Added
+
+- `scripts/check-fix-test.cjs`: a mechanical check that a regression test fails for the right reason. It reverse-applies only the product-code part of the fix commit, runs the test, and requires a non-zero exit whose output contains the expected assertion message. Then it restores the fix and requires the test to pass. A test that only dies on a selector, timeout, missing module or "no tests found" fails the check.
+- `schemas/revert-check.schema.json` for its output.
+- Fix records gain `fails_without_fix`, `failure_signature` and `revert_check`, all required for `fixed`. Signatures that describe a harness failure (timeouts, selectors, missing modules) are rejected.
+- `validate-findings.cjs --run-dir` and `generate-report.cjs` read each revert check back and require it to match the fix's commit, test file and signature.
+- Tests against throwaway git repos, including the bad-selector case (92 tests in total).
+
+### Changed
+
+- The fixer gives the regression assertion a message that names the bug, and commits the test with the fix in one commit. The verifier runs the revert check.
+
 ## 0.2.0 — 2026-11-14
 
 ### Added

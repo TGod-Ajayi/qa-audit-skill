@@ -126,9 +126,11 @@ When the user sets a budget, record it as `budget`, the maximum number of sub-ag
 | `schemas/run.schema.json` | Shape of `run.json` |
 | `schemas/coverage-ledger.schema.json` | Shape of `coverage-ledger.json` |
 | `schemas/findings.schema.json` | Shape of `findings.json` |
+| `schemas/revert-check.schema.json` | Shape of a `check-fix-test.cjs` result |
 | `scripts/validate-run.cjs` | Validates `run.json` |
 | `scripts/validate-coverage-ledger.cjs` | Validates the ledger |
 | `scripts/validate-findings.cjs` | Validates findings, with `--ledger` and `--run` cross-checks |
+| `scripts/check-fix-test.cjs` | Proves a regression test fails with the expected assertion when only the product fix is removed, and passes with it |
 | `scripts/generate-report.cjs` | Writes the reports from the validated records |
 
 Read each phase file when you reach that phase, not all at once. Give each tester only the checklists its units need.
@@ -137,8 +139,8 @@ Read each phase file when you reach that phase, not all at once. Give each teste
 
 1. **A bug is a reproduced gap between expected and observed behaviour.** The expected behaviour must cite a source: a spec, a ticket, UI copy, a Figma frame or design token, a type, schema or validation rule, an API contract, the project's own lint and type config, the app's own conventions on another screen, a documented platform convention (WCAG, Apple HIG, Material), or the user's statement. Your taste is not a source. Unsourced design, UX, copy and code-style opinions are `suggestions`.
 2. **Separation of duties.** Tester, reproducer, fixer and verifier are always different agents with fresh context, and the records name them.
-3. **Test before fix.** Every confirmed bug gets an automated test that fails for the right reason before any production code changes.
-4. **A fix needs proof.** The test failed before and passes after; the full suite is no worse than the baseline; an independent agent re-ran the original repro and saw correct behaviour.
+3. **Test before fix.** Every confirmed bug gets an automated test that fails for the right reason before any production code changes. "The right reason" is checked mechanically: with only the product part of the fix removed, the test must fail with an assertion message that names the bug.
+4. **A fix needs proof.** The test failed before and passes after, and `check-fix-test.cjs` confirmed it; the full suite is no worse than the baseline; an independent agent re-ran the original repro and saw correct behaviour.
 5. **Severity is user impact × likelihood.** It is not the number of checklist items that failed. Overall severity never exceeds the demonstrated impact.
 6. **Coverage is evidence.** A unit is `covered` only when every assigned check class has an evidenced check. "Not tested" never means "passing", and the reports say so explicitly.
 7. **Safe data and passive security only.** See Universal execution safety.
@@ -193,7 +195,8 @@ Script commands, run from the skill directory:
 ```bash
 node scripts/validate-run.cjs <run>/run.json
 node scripts/validate-coverage-ledger.cjs <run>/coverage-ledger.json
-node scripts/validate-findings.cjs <run>/findings.json --ledger <run>/coverage-ledger.json --run <run>/run.json
+node scripts/validate-findings.cjs <run>/findings.json --ledger <run>/coverage-ledger.json --run <run>/run.json --run-dir <run>
+node scripts/check-fix-test.cjs --repo <repo> --commit <sha> --test-file <test> --expect "<signature>" --out <file> -- <test command>
 node scripts/generate-report.cjs <run>
 ```
 
@@ -235,7 +238,7 @@ For anything beyond passive security hygiene, recommend a dedicated security aud
 
 1. Reporting a bug that a second agent hasn't reproduced, or one with no sourced expectation.
 2. The finder confirming its own bug, or the fixer verifying its own fix.
-3. Changing production code before a failing test exists.
+3. Changing production code before a failing test exists, or accepting a "failing" test that dies on a selector, timeout or setup error instead of the bug's assertion.
 4. Getting to green by deleting, skipping, loosening or `.only`-ing tests, changing expected values to match buggy output, swallowing errors, or adding blind retries and sleeps.
 5. Marking a unit `covered` because someone "looked at it".
 6. Logging design taste, copy preferences or code style as bugs. Those are suggestions unless a design file, design system, the app's own convention or the project's lint config says otherwise.

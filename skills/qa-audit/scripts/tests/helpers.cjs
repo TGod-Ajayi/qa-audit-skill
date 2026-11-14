@@ -17,9 +17,11 @@ const unit = (ledger, id) => ledger.units.find((u) => u.id === id);
 function fixedProof(n = 1) {
   return {
     verdict: 'fixed', commit: `abc${n}def`, test_file: `tests/t${n}.spec.ts`,
-    test_failed_before: true, test_passes_after: true, suite_no_worse_than_baseline: true,
+    test_failed_before: true, fails_without_fix: true, failure_signature: `total should be ${n}00 kobo`,
+    revert_check: `evidence/t${n}-revert-check.json`,
+    test_passes_after: true, suite_no_worse_than_baseline: true,
     verified_by_independent_agent: true, fixer: `fixer-${n}`, verifier: `verifier-${n}`, rounds: 1,
-    evidence: [`evidence/t${n}-before.txt`, `evidence/t${n}-after.txt`],
+    evidence: [`evidence/t${n}-before.txt`, `evidence/t${n}-after.txt`, `evidence/t${n}-revert-check.json`],
   };
 }
 
@@ -34,6 +36,7 @@ function tmpRun(mutate) {
   fs.writeFileSync(path.join(dir, 'coverage-ledger.json'), JSON.stringify(docs.ledger));
   fs.writeFileSync(path.join(dir, 'findings.json'), JSON.stringify(docs.findings));
   fs.writeFileSync(path.join(dir, 'run.json'), JSON.stringify(docs.run));
+  fs.cpSync(path.join(SAMPLE, 'evidence'), path.join(dir, 'evidence'), { recursive: true });
   return dir;
 }
 

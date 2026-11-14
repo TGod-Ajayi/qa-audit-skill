@@ -17,9 +17,11 @@
       "repro_rate": "3/3", "found_by": "tester-b02", "reproduced_by": "reproducer-01",
       "fix": {
         "verdict": "fixed", "commit": "f00dbab", "test_file": "tests/e2e/checkout-double-submit.spec.ts",
-        "test_failed_before": true, "test_passes_after": true, "suite_no_worse_than_baseline": true,
+        "test_failed_before": true, "fails_without_fix": true,
+        "failure_signature": "one order per Pay click", "revert_check": "evidence/QA-001-revert-check.json",
+        "test_passes_after": true, "suite_no_worse_than_baseline": true,
         "verified_by_independent_agent": true, "fixer": "fixer-qa-001", "verifier": "verifier-qa-001", "rounds": 1,
-        "evidence": ["evidence/QA-001-test-before.txt", "evidence/QA-001-test-after.txt"],
+        "evidence": ["evidence/QA-001-test-before.txt", "evidence/QA-001-test-after.txt", "evidence/QA-001-revert-check.json"],
         "notes": "Disabled button while pending and added idempotency key on POST /api/orders"
       }
     },
@@ -116,9 +118,11 @@
       "repro_rate": "3/3", "found_by": "tester-b05", "reproduced_by": "reproducer-07",
       "fix": {
         "verdict": "fixed", "commit": "be7c0de", "test_file": "tests/build/no-secrets-in-bundle.test.ts",
-        "test_failed_before": true, "test_passes_after": true, "suite_no_worse_than_baseline": true,
+        "test_failed_before": true, "fails_without_fix": true,
+        "failure_signature": "bundle contains secret key prefix sk_t", "revert_check": "evidence/QA-009-revert-check.json",
+        "test_passes_after": true, "suite_no_worse_than_baseline": true,
         "verified_by_independent_agent": true, "fixer": "fixer-qa-009", "verifier": "verifier-qa-009", "rounds": 1,
-        "evidence": ["evidence/QA-009-test-before.txt", "evidence/QA-009-test-after.txt"],
+        "evidence": ["evidence/QA-009-test-before.txt", "evidence/QA-009-test-after.txt", "evidence/QA-009-revert-check.json"],
         "notes": "Moved the charge call server-side. The exposed test key must still be rotated by the owner."
       }
     },

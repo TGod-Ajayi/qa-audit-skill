@@ -3,17 +3,21 @@
 // Validates findings.json against schemas/findings.schema.json, then applies the
 // per-verdict evidence rules, separation of duties and fix-proof rules.
 // With --ledger it cross-checks units, build and check classes; with --run it
-// cross-checks run metadata (for example, no fixes in report-only mode).
+// cross-checks run metadata (for example, no fixes in report-only mode); with
+// --run-dir it reads back each fixed finding's revert check (the output of
+// check-fix-test.cjs) and confirms it proves the test fails without the fix.
 // Zero dependencies.
 //
-// Usage: node validate-findings.cjs <findings.json> [--ledger <coverage-ledger.json>] [--run <run.json>]
+// Usage: node validate-findings.cjs <findings.json> [--ledger <coverage-ledger.json>] [--run <run.json>] [--run-dir <dir>]
 // Exit codes: 0 valid, 1 invalid records, 2 unreadable input or usage error.
 
 const {
   isStr, isObject, nonEmptyArr, hasOwn, safeQuote, isSafeRelativePath, validateSchema, loadSchema,
   readJsonFile, formatErrors,
 } = require('./lib/common.cjs');
+const path = require('path');
 const { isEvidencePath } = require('./validate-coverage-ledger.cjs');
+const { NON_BUG_SIGNATURE } = require('./check-fix-test.cjs');
 
 const RATE = /^(\d+)\/(\d+)$/;
 const PROVEN_REQUIRED = ['check_class', 'impact', 'likelihood', 'expected', 'expected_source', 'observed', 'repro_rate', 'found_by', 'reproduced_by'];
@@ -64,7 +68,13 @@ function fixErrors(f, w, err) {
     }
     for (const k of ['commit', 'test_file', 'fixer', 'verifier']) if (!isStr(x[k])) err(fw, `fixed requires ${k}`);
     if (!nonEmptyArr(x.evidence)) err(fw, 'fixed requires evidence (test output before and after)');
+    if (x.fails_without_fix !== true) err(fw, 'fixed requires fails_without_fix: true (run check-fix-test.cjs)');
+    if (!isStr(x.failure_signature)) err(fw, 'fixed requires failure_signature: the assertion text the test fails with when the fix is removed');
+    else if (NON_BUG_SIGNATURE.test(x.failure_signature)) err(fw, 'failure_signature describes a harness failure (timeout, selector, missing module, no tests), not the bug');
+    if (!isStr(x.revert_check)) err(fw, 'fixed requires revert_check: the check-fix-test.cjs result under evidence/');
+    else if (!(x.evidence || []).includes(x.revert_check)) err(fw, 'revert_check must also be listed in fix evidence');
   }
+  if (isStr(x.revert_check) && !isEvidencePath(x.revert_check)) err(fw, 'revert_check must be a safe relative path under evidence/');
   if (isStr(x.fixer) && x.fixer === x.verifier) err(fw, 'verifier must be a different agent from fixer');
   if (isStr(x.fixer) && x.fixer === f.reproduced_by) err(fw, 'fixer must not be the agent that reproduced the finding');
   if (isStr(x.test_file) && !isSafeRelativePath(x.test_file)) err(fw, 'test_file must be a safe repository-relative path');
@@ -126,16 +136,46 @@ function validateFindings(doc, ledger, run) {
   return semanticErrors(doc, ledger || null, run || null);
 }
 
-module.exports = { validateFindings };
+// Reads each fixed finding's revert check from the run directory and confirms it is
+// a passing check-fix-test.cjs result for this fix: same commit, test and signature.
+function revertCheckErrors(doc, runDir) {
+  const errors = [];
+  const schema = loadSchema('revert-check.schema.json');
+  for (const f of doc.findings) {
+    const x = f.fix;
+    if (!x || x.verdict !== 'fixed' || !isStr(x.revert_check) || !isEvidencePath(x.revert_check)) continue;
+    const w = `${f.id}.fix.revert_check`;
+    let rc;
+    try { rc = readJsonFile(path.join(runDir, x.revert_check)); } catch (e) {
+      errors.push(`${w}: ${e.code === 'INPUT' ? e.message : 'cannot read'}`); continue;
+    }
+    const schemaErrors = validateSchema(rc, schema, w);
+    if (schemaErrors.length) { errors.push(...schemaErrors); continue; }
+    const err = (msg) => errors.push(`${w}: ${msg}`);
+    if (rc.result !== 'pass') err(`check result is ${rc.result}${rc.reasons.length ? ` (${rc.reasons[0]})` : ''}`);
+    if (isStr(x.commit) && !rc.commit.startsWith(x.commit)) err('was run against a different commit than fix.commit');
+    if (rc.test_file !== x.test_file) err('was run against a different test file than fix.test_file');
+    if (rc.expect !== x.failure_signature) err('expected assertion does not match fix.failure_signature');
+    if (!rc.reverted_files.length) err('removed no product code');
+    if (!rc.without_fix || rc.without_fix.exit_code === 0 || rc.without_fix.timed_out || !rc.without_fix.matched_expect) {
+      err('does not show the test failing with the expected assertion without the fix');
+    }
+    if (!rc.with_fix || rc.with_fix.exit_code !== 0) err('does not show the test passing with the fix');
+  }
+  return errors;
+}
+
+module.exports = { validateFindings, revertCheckErrors };
 
 function parseArgs(argv) {
-  const out = { file: null, ledger: null, run: null };
+  const out = { file: null, ledger: null, run: null, runDir: null };
+  const keys = { '--ledger': 'ledger', '--run': 'run', '--run-dir': 'runDir' };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--ledger' || a === '--run') {
+    if (hasOwn(keys, a)) {
       const v = argv[++i];
       if (!v || v.startsWith('--')) return null;
-      out[a.slice(2)] = v;
+      out[keys[a]] = v;
     } else if (a.startsWith('--') || out.file) return null;
     else out.file = a;
   }
@@ -145,7 +185,7 @@ function parseArgs(argv) {
 if (require.main === module) {
   const args = parseArgs(process.argv.slice(2));
   if (!args) {
-    console.error('Usage: validate-findings.cjs <findings.json> [--ledger <coverage-ledger.json>] [--run <run.json>]');
+    console.error('Usage: validate-findings.cjs <findings.json> [--ledger <coverage-ledger.json>] [--run <run.json>] [--run-dir <dir>]');
     process.exit(2);
   }
   let doc; let ledger = null; let run = null;
@@ -155,6 +195,7 @@ if (require.main === module) {
     if (args.run) run = readJsonFile(args.run);
   } catch (e) { console.error(`✗ ${e.code === 'INPUT' ? e.message : 'cannot read input'}`); process.exit(2); }
   const errors = validateFindings(doc, ledger, run);
+  if (!errors.length && args.runDir) errors.push(...revertCheckErrors(doc, args.runDir));
   if (errors.length) { console.error(formatErrors(errors)); process.exit(1); }
   const by = {};
   for (const f of doc.findings) by[f.verdict] = (by[f.verdict] || 0) + 1;

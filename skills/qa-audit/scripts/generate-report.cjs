@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { readJsonFile } = require('./lib/common.cjs');
 const { validateLedger } = require('./validate-coverage-ledger.cjs');
-const { validateFindings } = require('./validate-findings.cjs');
+const { validateFindings, revertCheckErrors } = require('./validate-findings.cjs');
 const { validateRun, isPartialRun } = require('./validate-run.cjs');
 
 const SEV_ORDER = { S1: 1, S2: 2, S3: 3, S4: 4 };
@@ -145,6 +145,7 @@ function renderDetail(findingsDoc) {
     if (f.fix) {
       out.push(`**Fix:** ${f.fix.verdict}${f.fix.commit ? ` in \`${f.fix.commit}\`` : ''}${f.fix.test_file ? `, test \`${f.fix.test_file}\`` : ''}${f.fix.rounds ? `, ${f.fix.rounds} round(s)` : ''}` +
         `${f.fix.fixer ? `; fixed by ${f.fix.fixer}, verified by ${f.fix.verifier}` : ''}`);
+      if (f.fix.fails_without_fix) out.push(`  Fails without the fix: yes, with \`${f.fix.failure_signature}\` (checked by \`${f.fix.revert_check}\`)`);
       if (f.fix.evidence && f.fix.evidence.length) out.push(`  Fix evidence: ${f.fix.evidence.map((e) => `\`${e}\``).join(', ')}`);
       if (f.fix.notes) out.push(`  ${f.fix.notes}`);
       out.push('');
@@ -217,6 +218,7 @@ function generate(runDir) {
   const errors = [...runErrors, ...ledgerErrors];
   // Cross-checks need a structurally valid ledger and run.
   if (!errors.length) errors.push(...validateFindings(findingsDoc, ledger, run).map((e) => `findings ${e}`));
+  if (!errors.length) errors.push(...revertCheckErrors(findingsDoc, runDir).map((e) => `findings ${e}`));
   if (!errors.length && ledger.run !== run.run) errors.push('ledger $.run: does not match run.json');
   if (!errors.length && ledger.build !== run.build) errors.push('ledger $.build: does not match run.json');
   if (errors.length) { const e = new Error(`Records invalid — fix before reporting:\n- ${errors.join('\n- ')}`); e.code = 'INVALID'; throw e; }
