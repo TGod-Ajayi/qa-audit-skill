@@ -1,0 +1,24 @@
+{
+  "tool": "qa-audit/stamp-verdict",
+  "version": 1,
+  "run": 1,
+  "verdict": "Don't ship",
+  "reasons": [
+    "Open S2 on P0 unit U-001 — QA-002: Sign-up rejects names with apostrophes or diacritics"
+  ],
+  "audited_build": "a1b2c3d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3",
+  "verified_head": "c0ffee5111111111111111111111111111111111",
+  "verified_tree": "7a3f9e2c4b8d1f6a0e5c9b3d7f2a8e4c6b1d0f9a",
+  "branch": "qa-audit/run-1",
+  "fix_commits": [
+    "f00dbab222222222222222222222222222222222",
+    "be7c0de333333333333333333333333333333333"
+  ],
+  "accepted_commits": [],
+  "records": {
+    "run.json": "18f65a8d88a381b945021cf75a7394ded8c4274a0769abc426ef8e688b0e744f",
+    "coverage-ledger.json": "3277761a76528b3839c8fdeac72cfac9e8ee6e20e9140a87fff7403e869262f7",
+    "findings.json": "26678835d29c6dea39e5581a059435bcce5fd6c5395bf8ce04b4251707322b5c"
+  },
+  "stamped_at": "2026-11-14T16:05:00.000Z"
+}

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0 — 2026-11-14
+
+### Added
+
+- `scripts/stamp-verdict.cjs`:
+  - `stamp` writes `verdict.json`, tying the release verdict to the verified HEAD, its tree hash, the fix commits and a sha256 of each record. It refuses an unfinished run, a dirty audited build, a dirty repo, a HEAD missing the audited build or a fix commit, and any commit since the audit that isn't a recorded fix. Non-fix commits can be named with `--accept`, which records them and shows them in the report.
+  - `check` fails when the tree, the working tree or any record changed since the stamp, so an edit after the audit cancels the verdict. A new HEAD with an identical tree still passes. Meant for CI and pre-merge hooks.
+- `schemas/verdict.schema.json`.
+- The report header shows **Verified build**, **Stale stamp** or **Unstamped**.
+- Tests against throwaway git repos (107 tests in total).
+
+### Changed
+
+- A run on a dirty build can no longer get "Ship"; at best it is "Ship with known issues".
+- The report's "Build" line is now "Audited build".
+
 ## 0.4.0 — 2026-11-14
 
 ### Added

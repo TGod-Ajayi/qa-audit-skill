@@ -10,6 +10,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const LIMITS = Object.freeze({
   maxBytes: 16 * 1024 * 1024,
@@ -200,7 +201,8 @@ function parseJsonText(buf) {
   return data;
 }
 
-function readJsonFile(file) {
+// Reads a regular file (never through a symlink) within the size limit.
+function readRegularFile(file) {
   let st;
   try { st = fs.lstatSync(file); }
   catch { throw new InputError(`cannot read ${safeQuote(path.basename(String(file)))}`); }
@@ -219,10 +221,19 @@ function readJsonFile(file) {
       if (n === 0) break;
       off += n;
     }
-    return parseJsonText(buf.subarray(0, off));
+    return buf.subarray(0, off);
   } finally {
     fs.closeSync(fd);
   }
+}
+
+function readJsonFile(file) {
+  return parseJsonText(readRegularFile(file));
+}
+
+// sha256 of a record's exact bytes, used to tie a verdict stamp to its records.
+function sha256File(file) {
+  return crypto.createHash('sha256').update(readRegularFile(file)).digest('hex');
 }
 
 function formatErrors(errors) {
@@ -233,5 +244,5 @@ function formatErrors(errors) {
 
 module.exports = {
   LIMITS, InputError, hasOwn, isObject, isStr, nonEmptyArr, safeQuote, isSafeRelativePath, isAgentId,
-  isIsoTimestamp, checkSchema, validateSchema, loadSchema, readJsonFile, parseJsonText, formatErrors,
+  isIsoTimestamp, checkSchema, validateSchema, loadSchema, readJsonFile, readRegularFile, sha256File, parseJsonText, formatErrors,
 };

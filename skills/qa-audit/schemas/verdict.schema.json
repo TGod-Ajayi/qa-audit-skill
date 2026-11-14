@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/TGod-Ajayi/qa-audit-skill/schemas/verdict.schema.json",
+  "title": "qa-audit verdict stamp",
+  "description": "Written by scripts/stamp-verdict.cjs: the release verdict tied to the exact commit, tree and record bytes it was computed from.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tool", "version", "run", "verdict", "reasons", "audited_build", "verified_head", "verified_tree", "branch", "fix_commits", "accepted_commits", "records", "stamped_at"],
+  "properties": {
+    "tool": {"const": "qa-audit/stamp-verdict"},
+    "version": {"const": 1},
+    "run": {"type": "integer", "minimum": 1},
+    "verdict": {"enum": ["Ship", "Ship with known issues", "Don't ship"]},
+    "reasons": {"type": "array", "items": {"type": "string"}},
+    "audited_build": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+    "verified_head": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+    "verified_tree": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+    "branch": {"type": ["string", "null"]},
+    "fix_commits": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"}},
+    "accepted_commits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sha", "subject"],
+        "properties": {
+          "sha": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+          "subject": {"type": "string"}
+        }
+      }
+    },
+    "records": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run.json", "coverage-ledger.json", "findings.json"],
+      "properties": {
+        "run.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "coverage-ledger.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "findings.json": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "stamped_at": {"type": "string", "minLength": 1}
+  }
+}

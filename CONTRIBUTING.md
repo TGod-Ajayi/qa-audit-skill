@@ -32,6 +32,13 @@ npm run example
 npm test
 ```
 
+The sample's `verdict.json` holds sha256 hashes of its three records, so a change to any of them makes the stamp stale and fails a test. Refresh the hashes, then regenerate:
+
+```bash
+node -e "const p='examples/sample-run/verdict.json',fs=require('fs'),d=JSON.parse(fs.readFileSync(p));d.records=require('./skills/qa-audit/scripts/lib/stamp.cjs').recordHashes('examples/sample-run');fs.writeFileSync(p,JSON.stringify(d,null,2)+'\\n')"
+npm run example
+```
+
 ## Commit style
 
 Use short imperative subjects, such as `checks: add PWA checklist` or `validators: reject absolute evidence paths`.

@@ -1,6 +1,7 @@
 # QA audit report — demo-shop (run 1)
 
-**Build:** `a1b2c3d`  
+**Audited build:** `a1b2c3d`  
+**Verified build:** `c0ffee511111` (tree `7a3f9e2c4b8d`) on `qa-audit/run-1`, stamped 2026-11-14T16:05:00.000Z. Any later edit invalidates it: run `stamp-verdict.cjs check` before shipping.  
 **Target:** http://localhost:3000 (local)  
 **Mode:** full, profile standard  
 **Design sources:** Figma: Demo Shop / Checkout v3; docs/design-system.md  

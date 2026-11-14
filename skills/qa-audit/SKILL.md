@@ -127,10 +127,12 @@ When the user sets a budget, record it as `budget`, the maximum number of sub-ag
 | `schemas/coverage-ledger.schema.json` | Shape of `coverage-ledger.json` |
 | `schemas/findings.schema.json` | Shape of `findings.json` |
 | `schemas/revert-check.schema.json` | Shape of a `check-fix-test.cjs` result |
+| `schemas/verdict.schema.json` | Shape of `verdict.json`, the verdict stamp |
 | `scripts/validate-run.cjs` | Validates `run.json` |
 | `scripts/validate-coverage-ledger.cjs` | Validates the ledger |
 | `scripts/validate-findings.cjs` | Validates findings, with `--ledger` and `--run` cross-checks |
 | `scripts/check-fix-test.cjs` | Proves a regression test fails with the expected assertion when only the product fix is removed, and passes on every repeated run with it |
+| `scripts/stamp-verdict.cjs` | Stamps the verdict with the verified commit, tree and record hashes, and checks the stamp still applies |
 | `scripts/generate-report.cjs` | Writes the reports from the validated records |
 
 Read each phase file when you reach that phase, not all at once. Give each tester only the checklists its units need.
@@ -188,7 +190,7 @@ run-<N>/
 | 4 | Structured findings | `findings.json` | `validate-findings.cjs --ledger --run` passes |
 | 5 | Fix | commits on the branch, `fix` records | Each fix independently verified; findings validate |
 | 6 | Regression sweep | new candidates, if any, go back to Phase 3 | P0 journeys and the full suite pass |
-| 7 | Report | reports | `generate-report.cjs` runs clean |
+| 7 | Report | `verdict.json`, reports | `stamp-verdict.cjs stamp` succeeds and `generate-report.cjs` runs clean |
 
 Script commands, run from the skill directory:
 
@@ -197,7 +199,9 @@ node scripts/validate-run.cjs <run>/run.json
 node scripts/validate-coverage-ledger.cjs <run>/coverage-ledger.json
 node scripts/validate-findings.cjs <run>/findings.json --ledger <run>/coverage-ledger.json --run <run>/run.json --run-dir <run>
 node scripts/check-fix-test.cjs --repo <repo> --commit <sha> --test-file <test> --expect "<signature>" --repeat <n> --out <file> -- <test command>
+node scripts/stamp-verdict.cjs stamp <run> --repo <repo> [--accept <sha>]...
 node scripts/generate-report.cjs <run>
+node scripts/stamp-verdict.cjs check <run> --repo <repo>
 ```
 
 Run the ledger validator after creating the ledger and after every merge. Run the findings validator after Phase 4 and after every Phase 5 change. Fix the records, never the validator. Never weaken a record to make it pass.
@@ -247,3 +251,4 @@ For anything beyond passive security hygiene, recommend a dedicated security aud
 9. Destructive actions on shared or production data.
 10. Presenting a `quick`, scoped or incomplete run as full coverage, or declaring the job done after one pass. Recommend the next run's focus from `COVERAGE.md`.
 11. Writing reports by hand, or letting prose and JSON disagree.
+12. Quoting a verdict for code it wasn't stamped against. Any edit after the stamp, including your own, cancels it: re-run the affected checks, re-stamp, and only then repeat the verdict.

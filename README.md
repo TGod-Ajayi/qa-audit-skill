@@ -54,11 +54,12 @@ Multiple runs against the same repo are additive. The skill reads earlier ledger
 | `checks/email-and-notifications.md` | Email, SMS, push and in-app notifications |
 | `checks/code-quality.md` | Project quality gates, error handling, duplication, tests, dependencies |
 | `checks/security-hygiene.md` | Passive security checks; everything else is a referral |
-| `schemas/*.schema.json` | JSON Schemas for `run.json`, `coverage-ledger.json`, `findings.json` and revert-check results |
+| `schemas/*.schema.json` | JSON Schemas for `run.json`, `coverage-ledger.json`, `findings.json`, revert-check results and `verdict.json` |
 | `scripts/validate-run.cjs` | Validator for `run.json` |
 | `scripts/validate-coverage-ledger.cjs` | Validator for the ledger |
 | `scripts/validate-findings.cjs` | Validator for findings, with ledger and run cross-checks |
 | `scripts/check-fix-test.cjs` | Proves a regression test fails for the right reason (removes only the product fix and requires the bug's assertion) and that the fix holds on every repeated run |
+| `scripts/stamp-verdict.cjs` | Stamps the verdict with the verified commit, tree hash and record hashes; `check` fails once anything changes |
 | `scripts/generate-report.cjs` | Report generator; refuses to run on invalid records |
 | `scripts/tests/` | `node:test` suites for the validators, the generator, the CLIs and doc consistency |
 | `examples/sample-run/` | A complete example run with generated reports |
@@ -146,6 +147,24 @@ It reverse-applies only the fix's **non-test** changes and runs the test. The te
 A bug that shows up once in a while can't be `confirmed` (that needs 3/3 from a clean state, by a different agent). It's `flaky`, with a rate measured over at least 5 attempts, and reported separately.
 
 Fixing one is harder to prove: if a bug shows up 4 times in 10, an unfixed build still passes a single run 60% of the time. So the validator sets `--repeat` from the bug's own rate: enough runs that an unfixed bug would slip past all of them at most 5% of the time. That's 6 runs for 4/10 and 29 for 1/10. Every run with the fix must pass, and the test must catch the bug at least once without it. For a confirmed bug, the test must catch it on every run without the fix; if it doesn't, the test or the verdict is wrong.
+
+### Can "Ship" go stale?
+
+Not quietly. Fixes land after the audited commit, and someone (or another agent) can always commit after the audit. So the verdict is stamped:
+
+```bash
+node skills/qa-audit/scripts/stamp-verdict.cjs stamp <run> --repo .
+node skills/qa-audit/scripts/stamp-verdict.cjs check <run> --repo .   # in CI or a pre-merge hook
+```
+
+`stamp` writes `verdict.json` with the verdict, the verified HEAD, its **tree hash** and a sha256 of each record. It refuses to stamp:
+
+- an unfinished run, or a dirty audited build (a dirty build can never get "Ship")
+- a repo with uncommitted or untracked changes
+- a HEAD missing any fix commit
+- any commit since the audit that isn't a recorded fix, unless you name it with `--accept`, which the report then shows
+
+`check` fails if the code tree, the working tree or any record changed since the stamp. A rebase or merge that leaves the tree identical still passes. The report says **Verified build**, **Stale stamp** or **Unstamped**, so you can tell which you're reading.
 
 See [`examples/sample-run/REPORT.md`](examples/sample-run/REPORT.md) for what a finished run looks like.
 

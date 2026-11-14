@@ -7,11 +7,23 @@ Reports are **generated from the validated records**, not written freehand. That
 ```bash
 node scripts/validate-run.cjs <run>/run.json
 node scripts/validate-coverage-ledger.cjs <run>/coverage-ledger.json
-node scripts/validate-findings.cjs <run>/findings.json --ledger <run>/coverage-ledger.json --run <run>/run.json
+node scripts/validate-findings.cjs <run>/findings.json --ledger <run>/coverage-ledger.json --run <run>/run.json --run-dir <run>
+node scripts/stamp-verdict.cjs stamp <run> --repo <repo>
 node scripts/generate-report.cjs <run>
 ```
 
 The generator validates all three records itself and refuses to write reports from invalid ones.
+
+**Stamp the verdict** after the regression sweep, with the audit branch checked out and nothing uncommitted. `stamp-verdict.cjs stamp` writes `verdict.json`: the verdict, the verified HEAD, its tree hash, the fix commits and a sha256 of each record. It refuses when:
+
+- the run is unfinished, or the audited build was dirty
+- the repo has uncommitted or untracked changes
+- HEAD doesn't descend from the audited build, or is missing a fix commit
+- any commit since the audited build isn't a recorded fix
+
+A non-fix commit you have checked (a revert after `needs_human`, say) can be named with `--accept <sha>`; it is recorded with its subject and shown in the report. Never accept a commit you haven't verified.
+
+The report shows **Verified build** for a current stamp, **Stale stamp** when the records changed after stamping, and **Unstamped** when there is none. Before anyone ships, `stamp-verdict.cjs check <run> --repo <repo>` must pass. It fails when the records changed, the repo has uncommitted or untracked changes, or HEAD's tree differs from the stamped one. Any edit after the stamp, by anyone, cancels the verdict. A rebase or merge that leaves the tree identical still passes. Put the check in CI or a pre-merge hook.
 
 This writes:
 
@@ -61,7 +73,8 @@ Reply briefly with:
 - the verdict
 - the top 3 open issues, if any
 - how many bugs were fixed and how many tests were added
-- the branch name
+- the branch name, and the verified commit and tree from `verdict.json`
 - the next run's focus
+- that the verdict holds only while `stamp-verdict.cjs check` passes
 
 Point to the report files rather than repeating them.

@@ -13,6 +13,7 @@ const { readJsonFile } = require('./lib/common.cjs');
 const { validateLedger } = require('./validate-coverage-ledger.cjs');
 const { validateFindings, revertCheckErrors } = require('./validate-findings.cjs');
 const { validateRun, isPartialRun } = require('./validate-run.cjs');
+const { readStamp, recordDriftReasons, STAMP_FILE } = require('./lib/stamp.cjs');
 
 const SEV_ORDER = { S1: 1, S2: 2, S3: 3, S4: 4 };
 const SUMMARY_START = '<!-- summary:start -->';
@@ -39,6 +40,7 @@ function computeVerdict(findingsDoc, ledger, run = null) {
   if (stop.length) return { verdict: "Don't ship", reasons: stop };
 
   const caveats = [];
+  if (run && run.dirty) caveats.push('The audited build had uncommitted changes, so no commit fully describes what was tested');
   if (run && run.run_status === 'incomplete') caveats.push(`Run incomplete (${run.incomplete_reason}); untested areas carry unknown risk`);
   if (run && isPartialRun(run)) caveats.push(`Partial run (${run.mode}/${run.profile}${run.scope.length ? `, scope: ${run.scope.join(', ')}` : ''}); this verdict covers only what was in scope`);
   for (const f of findings.filter((f) => f.verdict === 'needs_validation' && f.security_referral)) caveats.push(`Security referral ${f.id} not yet reviewed: ${f.title}`);
@@ -57,7 +59,19 @@ function table(headers, rows) {
   return [`| ${headers.join(' | ')} |`, `|${headers.map(() => '---').join('|')}|`, ...rows.map((r) => `| ${r.map(esc).join(' | ')} |`)].join('\n') + '\n';
 }
 
-function renderReport(findingsDoc, ledger, run, previousReport) {
+function stampLines(stampInfo) {
+  if (!stampInfo || stampInfo.state === 'none') {
+    return ['> **Unstamped:** this verdict is not yet tied to a verified commit. Run `stamp-verdict.cjs stamp` after the regression sweep, and `stamp-verdict.cjs check` before shipping.', ''];
+  }
+  const st = stampInfo.stamp;
+  if (stampInfo.drift.length) {
+    return [`> **Stale stamp:** ${stampInfo.drift.join('; ')}. Re-stamp before relying on this verdict.`, ''];
+  }
+  return [`**Verified build:** \`${st.verified_head.slice(0, 12)}\` (tree \`${st.verified_tree.slice(0, 12)}\`)${st.branch ? ` on \`${st.branch}\`` : ''}, stamped ${st.stamped_at}` +
+    `${st.accepted_commits.length ? `, with ${st.accepted_commits.length} accepted non-fix commit(s)` : ''}. Any later edit invalidates it: run \`stamp-verdict.cjs check\` before shipping.  `];
+}
+
+function renderReport(findingsDoc, ledger, run, previousReport, stampInfo) {
   const { verdict, reasons } = computeVerdict(findingsDoc, ledger, run);
   const f = findingsDoc.findings;
   const proven = f.filter(isProven);
@@ -83,7 +97,8 @@ function renderReport(findingsDoc, ledger, run, previousReport) {
     `# QA audit report — ${run.repo} (run ${findingsDoc.run})`,
     '',
     banner, banner ? '' : null,
-    `**Build:** \`${findingsDoc.build}\`${run.dirty ? ' (dirty worktree)' : ''}  `,
+    `**Audited build:** \`${findingsDoc.build}\`${run.dirty ? ' (dirty worktree)' : ''}  `,
+    ...stampLines(stampInfo),
     `**Target:** ${run.target}${run.environment ? ` (${run.environment})` : ''}  `,
     `**Mode:** ${run.mode}, profile ${run.profile}${run.scope.length ? `, scope ${run.scope.join(', ')}` : ''}${run.separation === 'sequential' ? ' (sequential roles — weaker separation)' : ''}  `,
     run.design_sources.length ? `**Design sources:** ${run.design_sources.join('; ')}  ` : null,
@@ -205,7 +220,8 @@ function renderSuggestions(findingsDoc) {
     table(['Unit', 'Kind', 'Suggestion'], s.map((x) => [x.unit || '—', x.kind || 'other', x.text]))].join('\n');
 }
 
-function generate(runDir) {
+// Reads and fully validates the three records. Throws with code READ or INVALID.
+function loadRecords(runDir) {
   const read = (n) => {
     try { return readJsonFile(path.join(runDir, n)); }
     catch (e) { const x = new Error(`${n}: ${e.code === 'INPUT' ? e.message : 'cannot read'}`); x.code = 'READ'; throw x; }
@@ -222,12 +238,23 @@ function generate(runDir) {
   if (!errors.length && ledger.run !== run.run) errors.push('ledger $.run: does not match run.json');
   if (!errors.length && ledger.build !== run.build) errors.push('ledger $.build: does not match run.json');
   if (errors.length) { const e = new Error(`Records invalid — fix before reporting:\n- ${errors.join('\n- ')}`); e.code = 'INVALID'; throw e; }
+  return { run, ledger, findingsDoc };
+}
+
+function generate(runDir) {
+  const { run, ledger, findingsDoc } = loadRecords(runDir);
+  const verdict = computeVerdict(findingsDoc, ledger, run);
+  let stampInfo;
+  try { stampInfo = readStamp(runDir); } catch (e) {
+    const x = new Error(`${STAMP_FILE}: ${e.code === 'INPUT' ? e.message : 'cannot read'}`); x.code = 'INVALID'; throw x;
+  }
+  if (stampInfo.state === 'ok') stampInfo.drift = recordDriftReasons(stampInfo.stamp, runDir, verdict.verdict);
 
   const reportPath = path.join(runDir, 'REPORT.md');
   let previous = null;
   try { if (fs.lstatSync(reportPath).isFile()) previous = fs.readFileSync(reportPath, 'utf8'); } catch { /* first run */ }
   const files = {
-    'REPORT.md': renderReport(findingsDoc, ledger, run, previous),
+    'REPORT.md': renderReport(findingsDoc, ledger, run, previous, stampInfo),
     'FINDINGS-DETAIL.md': renderDetail(findingsDoc),
     'NEEDS-VALIDATION.md': renderNeedsValidation(findingsDoc),
     'COVERAGE.md': renderCoverage(ledger),
@@ -241,10 +268,10 @@ function generate(runDir) {
     if (st && !st.isFile()) { const e = new Error(`${name}: refusing to overwrite a non-regular file`); e.code = 'READ'; throw e; }
     fs.writeFileSync(out, body.endsWith('\n') ? body : body + '\n');
   }
-  return { verdict: computeVerdict(findingsDoc, ledger, run), files: Object.keys(files) };
+  return { verdict, stamp: stampInfo, files: Object.keys(files) };
 }
 
-module.exports = { computeVerdict, generate, isOpen };
+module.exports = { computeVerdict, generate, loadRecords, isOpen };
 
 if (require.main === module) {
   const dir = process.argv[2];
